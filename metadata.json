@@ -1,0 +1,6 @@
+{
+  "name": "COURTSIDE - Basketball Performance Coach",
+  "description": "Entrenador personal de básquetbol y centro de rendimiento deportivo para atletas competitivos de Instituto Atlético Central Córdoba (IACC).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
