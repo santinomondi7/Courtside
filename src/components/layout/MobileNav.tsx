@@ -13,6 +13,7 @@ import {
   Trophy,
   History,
   Settings,
+  Sparkles,
 } from 'lucide-react';
 import { NavSection } from './Sidebar';
 
@@ -30,6 +31,7 @@ export const MobileNav: React.FC<Props> = ({ activeSection, onSelectSection }) =
   };
 
   const moreItems = [
+    { id: 'analyst' as NavSection, label: 'Performance Analyst (IA)', icon: Sparkles, desc: 'Consultá tu historial y debilidades con IA' },
     { id: 'gym' as NavSection, label: 'Gimnasio Instituto', icon: Dumbbell, desc: 'Fuerza, cargas y volumen' },
     { id: 'home_physical' as NavSection, label: 'Físico en Casa', icon: Home, desc: 'Pliometría y estabilidad' },
     { id: 'basketball_skill' as NavSection, label: 'Técnica Individual', icon: Target, desc: 'Tiros en patio y manejo' },

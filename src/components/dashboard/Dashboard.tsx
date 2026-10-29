@@ -192,6 +192,45 @@ export const Dashboard: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* 1.5 Basketball Performance Analyst (IA) Callout */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-[#FF6B2C]/15 via-[#15191F] to-[#0D1015] border border-[#FF6B2C]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-[#FF6B2C] text-black flex items-center justify-center font-black shadow-lg shadow-[#FF6B2C]/20 shrink-0">
+            <Sparkles className="w-6 h-6 stroke-[2.5]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-display font-black text-base sm:text-lg text-white">
+                BASKETBALL PERFORMANCE ANALYST (IA)
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FF6B2C] text-black">
+                ASISTENTE
+              </span>
+            </div>
+            <p className="text-xs text-[#9299A5] mt-0.5 max-w-xl">
+              Consultá tus debilidades detectadas, la carga semanal real acumulada (sRPE) y las proyecciones estadísticas de salto y velocidad.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onNavigateSection('analyst')}
+            className="px-4 py-2.5 rounded-xl font-bold text-xs text-black bg-[#FF6B2C] hover:bg-[#FF8243] transition flex items-center gap-1.5 shadow-md shadow-[#FF6B2C]/20"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Preguntar al Analista</span>
+          </button>
+          <button
+            onClick={() => onNavigateSection('stats')}
+            className="px-4 py-2.5 rounded-xl font-semibold text-xs text-white bg-[#0B0D10] hover:bg-[#1E2633] border border-[#2B3545] transition flex items-center gap-1.5"
+          >
+            <span>Ver Carga & Debilidades</span>
+            <ChevronRight className="w-3.5 h-3.5 text-[#9299A5]" />
+          </button>
+        </div>
+      </div>
+
       {/* 2. Hero Performance Card (Visual Centerpiece) */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1C222C] via-[#141820] to-[#0D1015] border border-[#2B3545] p-6 sm:p-8 court-glow">
         {/* Subtle geometric basketball court arc decorative background */}

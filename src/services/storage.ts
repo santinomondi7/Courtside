@@ -706,12 +706,13 @@ export const StorageService = {
     this.saveAllTemplates(list);
   },
 
-  // FULL BACKUP EXPORT & IMPORT
+  // FULL BACKUP EXPORT & IMPORT (Resistente a errores)
   exportAllData(): string {
     const data = {
-      version: '1.0',
+      version: '1.1',
       exportedAt: new Date().toISOString(),
       appName: 'COURTSIDE',
+      appletId: 'courtside-iacc',
       profile: this.getProfile(),
       activities: this.getActivities(),
       measurements: this.getMeasurements(),
@@ -721,31 +722,232 @@ export const StorageService = {
     return JSON.stringify(data, null, 2);
   },
 
-  importAllData(jsonString: string): { success: boolean; message: string; count?: number } {
+  exportAllToCSV(): string {
+    const activities = this.getActivities();
+    const headers = [
+      'ID',
+      'Fecha',
+      'Hora',
+      'Categoría',
+      'Nivel_IACC',
+      'Estado',
+      'Duración_Min',
+      'RPE_Esfuerzo',
+      'Carga_sRPE_AU',
+      'Fatiga_1_10',
+      'Sueño_Horas',
+      'Dolor_Zonas',
+      'Nivel_Molestia',
+      'Tiro_Intentos',
+      'Tiro_Aciertos',
+      'Tiro_Efectividad_Pct',
+      'Notas',
+    ];
+
+    const rows = activities.map((a) => {
+      const sRpe = a.rpe ? a.durationMinutes * a.rpe : '';
+      const notesClean = (a.notes || '').replace(/"/g, '""');
+      const sorenessAreas = (a.sorenessAreas || []).join('; ');
+
+      return [
+        a.id,
+        a.date,
+        a.startTime || '',
+        a.category,
+        a.iaccCategoryLevel || '',
+        a.status,
+        a.durationMinutes,
+        a.rpe || '',
+        sRpe,
+        a.fatigueLevel || '',
+        a.sleepHours || '',
+        `"${sorenessAreas}"`,
+        a.sorenessLevel || '',
+        a.basketballAttempts || '',
+        a.basketballMakes || '',
+        a.basketballAccuracyPercentage !== undefined ? `${a.basketballAccuracyPercentage}%` : '',
+        `"${notesClean}"`,
+      ].join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
+  },
+
+  validateBackup(jsonString: string): {
+    isValid: boolean;
+    error?: string;
+    profile?: UserProfile;
+    activitiesCount: number;
+    measurementsCount: number;
+    goalsCount: number;
+    templatesCount: number;
+    newActivitiesCount: number;
+    existingActivitiesCount: number;
+    exportedAt?: string;
+    data?: any;
+  } {
     try {
       const data = JSON.parse(jsonString);
       if (!data || typeof data !== 'object') {
-        return { success: false, message: 'El archivo JSON no contiene una estructura válida.' };
+        return {
+          isValid: false,
+          error: 'El archivo no contiene un objeto JSON válido.',
+          activitiesCount: 0,
+          measurementsCount: 0,
+          goalsCount: 0,
+          templatesCount: 0,
+          newActivitiesCount: 0,
+          existingActivitiesCount: 0,
+        };
       }
 
-      if (data.profile) this.saveProfile(data.profile);
-      if (Array.isArray(data.activities)) this.saveAllActivities(data.activities);
-      if (Array.isArray(data.measurements)) this.saveAllMeasurements(data.measurements);
-      if (Array.isArray(data.goals)) this.saveAllGoals(data.goals);
-      if (Array.isArray(data.templates)) this.saveAllTemplates(data.templates);
+      if (!Array.isArray(data.activities) && !Array.isArray(data.measurements) && !Array.isArray(data.goals)) {
+        return {
+          isValid: false,
+          error: 'El archivo no contiene registros de actividades, mediciones u objetivos reconocibles.',
+          activitiesCount: 0,
+          measurementsCount: 0,
+          goalsCount: 0,
+          templatesCount: 0,
+          newActivitiesCount: 0,
+          existingActivitiesCount: 0,
+        };
+      }
 
-      const totalItems =
-        (data.activities?.length || 0) +
-        (data.measurements?.length || 0) +
-        (data.goals?.length || 0);
+      const currentActivities = this.getActivities();
+      const currentIds = new Set(currentActivities.map((a) => a.id));
+      const incomingActs: Activity[] = Array.isArray(data.activities) ? data.activities : [];
+
+      let newActsCount = 0;
+      let existingActsCount = 0;
+      incomingActs.forEach((act) => {
+        if (currentIds.has(act.id)) {
+          existingActsCount++;
+        } else {
+          newActsCount++;
+        }
+      });
 
       return {
-        success: true,
-        message: `Se importaron correctamente los datos (${totalItems} registros deportivos).`,
-        count: totalItems,
+        isValid: true,
+        profile: data.profile,
+        activitiesCount: incomingActs.length,
+        measurementsCount: Array.isArray(data.measurements) ? data.measurements.length : 0,
+        goalsCount: Array.isArray(data.goals) ? data.goals.length : 0,
+        templatesCount: Array.isArray(data.templates) ? data.templates.length : 0,
+        newActivitiesCount: newActsCount,
+        existingActivitiesCount: existingActsCount,
+        exportedAt: data.exportedAt,
+        data,
       };
     } catch (err: any) {
-      return { success: false, message: `Error al procesar el archivo: ${err.message || 'JSON inválido'}` };
+      return {
+        isValid: false,
+        error: `Error de sintaxis JSON: ${err.message || 'Estructura inválida'}`,
+        activitiesCount: 0,
+        measurementsCount: 0,
+        goalsCount: 0,
+        templatesCount: 0,
+        newActivitiesCount: 0,
+        existingActivitiesCount: 0,
+      };
+    }
+  },
+
+  importAllData(
+    jsonString: string,
+    options: { mode: 'merge' | 'replace' } = { mode: 'merge' }
+  ): {
+    success: boolean;
+    message: string;
+    activitiesImported?: number;
+    measurementsImported?: number;
+    goalsImported?: number;
+  } {
+    const val = this.validateBackup(jsonString);
+    if (!val.isValid || !val.data) {
+      return {
+        success: false,
+        message: val.error || 'El archivo no superó la validación de integridad.',
+      };
+    }
+
+    const data = val.data;
+
+    try {
+      if (options.mode === 'replace') {
+        // Complete replacement
+        if (data.profile) this.saveProfile(data.profile);
+        if (Array.isArray(data.activities)) this.saveAllActivities(data.activities);
+        if (Array.isArray(data.measurements)) this.saveAllMeasurements(data.measurements);
+        if (Array.isArray(data.goals)) this.saveAllGoals(data.goals);
+        if (Array.isArray(data.templates)) this.saveAllTemplates(data.templates);
+
+        return {
+          success: true,
+          message: `Restauración completa realizada: ${val.activitiesCount} entrenamientos, ${val.measurementsCount} mediciones y ${val.goalsCount} objetivos.`,
+          activitiesImported: val.activitiesCount,
+          measurementsImported: val.measurementsCount,
+          goalsImported: val.goalsCount,
+        };
+      } else {
+        // Safe Merge: Deduplicate by ID
+        const curActs = this.getActivities();
+        const curActsMap = new Map(curActs.map((a) => [a.id, a]));
+        let actsAdded = 0;
+        if (Array.isArray(data.activities)) {
+          data.activities.forEach((incoming: Activity) => {
+            if (!curActsMap.has(incoming.id)) {
+              curActsMap.set(incoming.id, incoming);
+              actsAdded++;
+            }
+          });
+          this.saveAllActivities(Array.from(curActsMap.values()));
+        }
+
+        const curMeas = this.getMeasurements();
+        const curMeasMap = new Map(curMeas.map((m) => [m.id, m]));
+        let measAdded = 0;
+        if (Array.isArray(data.measurements)) {
+          data.measurements.forEach((incoming: PhysicalMeasurement) => {
+            if (!curMeasMap.has(incoming.id)) {
+              curMeasMap.set(incoming.id, incoming);
+              measAdded++;
+            }
+          });
+          this.saveAllMeasurements(Array.from(curMeasMap.values()));
+        }
+
+        const curGoals = this.getGoals();
+        const curGoalsMap = new Map(curGoals.map((g) => [g.id, g]));
+        let goalsAdded = 0;
+        if (Array.isArray(data.goals)) {
+          data.goals.forEach((incoming: PersonalGoal) => {
+            if (!curGoalsMap.has(incoming.id)) {
+              curGoalsMap.set(incoming.id, incoming);
+              goalsAdded++;
+            }
+          });
+          this.saveAllGoals(Array.from(curGoalsMap.values()));
+        }
+
+        if (data.profile && !this.getProfile()) {
+          this.saveProfile(data.profile);
+        }
+
+        return {
+          success: true,
+          message: `Combinación exitosa sin duplicar: se incorporaron ${actsAdded} sesiones nuevas, ${measAdded} mediciones y ${goalsAdded} objetivos a tu historial existente.`,
+          activitiesImported: actsAdded,
+          measurementsImported: measAdded,
+          goalsImported: goalsAdded,
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `Error durante la importación: ${err.message || 'Error desconocido'}. Tus registros previos no sufrieron alteraciones.`,
+      };
     }
   },
 

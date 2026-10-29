@@ -23,6 +23,7 @@ import { StatsView } from './components/modules/StatsView';
 import { GoalsView } from './components/modules/GoalsView';
 import { HistoryView } from './components/modules/HistoryView';
 import { SettingsView } from './components/modules/SettingsView';
+import { PerformanceAnalystView } from './components/modules/PerformanceAnalystView';
 
 import {
   Activity,
@@ -353,8 +354,8 @@ function CourtsideApp() {
     showToast('Copia de seguridad descargada correctamente.', 'success');
   };
 
-  const handleImportData = (jsonStr: string) => {
-    const res = StorageService.importAllData(jsonStr);
+  const handleImportData = (jsonStr: string, mode: 'merge' | 'replace' = 'merge') => {
+    const res = StorageService.importAllData(jsonStr, { mode });
     if (res.success) {
       setProfile(StorageService.getProfile());
       setActivities(StorageService.getActivities());
@@ -461,6 +462,16 @@ function CourtsideApp() {
             />
           )}
 
+          {activeSection === 'analyst' && (
+            <PerformanceAnalystView
+              profile={profile}
+              activities={activities}
+              measurements={measurements}
+              goals={goals}
+              onNavigateSection={handleSelectSection}
+            />
+          )}
+
           {activeSection === 'iacc' && (
             <IACCTeamView
               activities={activities}
@@ -507,6 +518,8 @@ function CourtsideApp() {
             <StatsView
               activities={activities}
               measurements={measurements}
+              goals={goals}
+              profile={profile}
               onSaveMeasurement={handleSaveMeasurement}
               onDeleteMeasurement={handleDeleteMeasurement}
               onOpenNewActivity={handleOpenNewActivity}
@@ -516,6 +529,8 @@ function CourtsideApp() {
           {activeSection === 'goals' && (
             <GoalsView
               goals={goals}
+              measurements={measurements}
+              activities={activities}
               onSaveGoal={handleSaveGoal}
               onUpdateGoalProgress={handleUpdateGoalProgress}
               onDeleteGoal={handleDeleteGoal}

@@ -22,6 +22,7 @@ import {
 import { UserProfile, AppSyncInfo } from '../../types';
 import { SupabaseService } from '../../services/supabase';
 import { CloudSyncService } from '../../services/cloudSync';
+import { StorageService } from '../../services/storage';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 
 interface Props {
@@ -30,7 +31,8 @@ interface Props {
   onSaveProfile: (p: UserProfile) => void;
   onManualSync: () => void;
   onExportData: () => void;
-  onImportData: (jsonStr: string) => void;
+  onExportCSV?: () => void;
+  onImportData: (jsonStr: string, mode?: 'merge' | 'replace') => void;
   onResetData: () => void;
   onClearAllData: () => void;
   showToast: (msg: string, type?: any) => void;
@@ -142,6 +144,25 @@ export const SettingsView: React.FC<Props> = ({
     setTimeout(() => setCopiedSql(false), 3000);
   };
 
+  // Backup preview modal state
+  const [backupPreview, setBackupPreview] = useState<{
+    fileContent: string;
+    summary: ReturnType<typeof StorageService.validateBackup>;
+  } | null>(null);
+
+  const handleExportCSV = () => {
+    const csvContent = StorageService.exportAllToCSV();
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `courtside_historial_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Historial completo exportado a CSV.', 'success');
+  };
+
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -149,9 +170,18 @@ export const SettingsView: React.FC<Props> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      if (content) {
-        onImportData(content);
+      if (!content) return;
+
+      const summary = StorageService.validateBackup(content);
+      if (!summary.isValid) {
+        showToast(summary.error || 'El archivo no contiene un backup válido.', 'error');
+        return;
       }
+
+      setBackupPreview({
+        fileContent: content,
+        summary,
+      });
     };
     reader.readAsText(file);
     e.target.value = ''; // Reset input
@@ -618,6 +648,14 @@ export const SettingsView: React.FC<Props> = ({
             <span>Descargar Copia de Seguridad (JSON)</span>
           </button>
 
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#0B0D10] border border-[#26303E] hover:bg-[#1E2532] transition"
+          >
+            <Download className="w-4 h-4 text-[#3ECF8E]" />
+            <span>Exportar Historial a CSV (Excel)</span>
+          </button>
+
           <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#0B0D10] border border-[#26303E] hover:bg-[#1E2532] transition cursor-pointer">
             <Upload className="w-4 h-4 text-[#B7F56A]" />
             <span>Restaurar Copia de Seguridad</span>
@@ -641,6 +679,89 @@ export const SettingsView: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* Backup Preview & Confirmation Modal */}
+      {backupPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#15191F] border border-[#2B3545] p-6 shadow-2xl text-white space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#202734]">
+              <div className="flex items-center gap-2 text-sm font-bold text-white">
+                <ShieldCheck className="w-5 h-5 text-[#B7F56A]" />
+                <span>Vista Previa de Restauración</span>
+              </div>
+              <button
+                onClick={() => setBackupPreview(null)}
+                className="text-[#6D7787] hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-[#9299A5] leading-relaxed">
+              El archivo JSON es válido. A continuación se detallan los registros identificados antes de proceder:
+            </p>
+
+            <div className="p-3.5 rounded-2xl bg-[#0B0D10] border border-[#1E2530] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[#9299A5]">Sesiones de entrenamiento:</span>
+                <span className="font-bold text-white">
+                  {backupPreview.summary.activitiesCount} registros ({backupPreview.summary.newActivitiesCount} nuevos, {backupPreview.summary.existingActivitiesCount} ya existentes)
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#9299A5]">Mediciones físicas:</span>
+                <span className="font-bold text-white">
+                  {backupPreview.summary.measurementsCount} registros
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#9299A5]">Objetivos deportivos:</span>
+                <span className="font-bold text-white">
+                  {backupPreview.summary.goalsCount} metas
+                </span>
+              </div>
+              {backupPreview.summary.exportedAt && (
+                <div className="flex justify-between text-[11px] text-[#6D7787] pt-1 border-t border-[#1E2530]">
+                  <span>Fecha del respaldo:</span>
+                  <span>{new Date(backupPreview.summary.exportedAt).toLocaleString('es-AR')}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onImportData(backupPreview.fileContent, 'merge');
+                  setBackupPreview(null);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-black bg-[#B7F56A] hover:bg-[#c6f787] transition"
+              >
+                Combinar con mis datos actuales (Sin duplicados — Seguro)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onImportData(backupPreview.fileContent, 'replace');
+                  setBackupPreview(null);
+                }}
+                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-amber-400 bg-[#0B0D10] hover:bg-[#1E2532] border border-amber-500/30 transition"
+              >
+                Sobrescribir historial completo
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBackupPreview(null)}
+                className="w-full py-2 text-xs text-[#9299A5] hover:text-white transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

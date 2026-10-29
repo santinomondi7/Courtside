@@ -16,6 +16,7 @@ import {
 
 export type NavSection =
   | 'dashboard'
+  | 'analyst'
   | 'logger'
   | 'iacc'
   | 'gym'
@@ -40,14 +41,15 @@ export const Sidebar: React.FC<Props> = ({
 }) => {
   const mainNavItems = [
     { id: 'dashboard' as NavSection, label: 'Inicio', icon: LayoutDashboard },
+    { id: 'analyst' as NavSection, label: 'Performance Analyst', icon: Sparkles, badge: 'IA' },
     { id: 'logger' as NavSection, label: 'Registrar actividad', icon: PlusCircle, isHighlight: true },
     { id: 'iacc' as NavSection, label: 'Entrenamientos IACC', icon: Users, badge: 'Club' },
     { id: 'gym' as NavSection, label: 'Gimnasio Instituto', icon: Dumbbell },
     { id: 'home_physical' as NavSection, label: 'Físico en Casa', icon: Home },
     { id: 'basketball_skill' as NavSection, label: 'Técnica Individual', icon: Target },
     { id: 'calendar' as NavSection, label: 'Calendario', icon: CalendarDays },
-    { id: 'stats' as NavSection, label: 'Estadísticas', icon: BarChart3 },
-    { id: 'goals' as NavSection, label: 'Objetivos', icon: Trophy },
+    { id: 'stats' as NavSection, label: 'Estadísticas & Carga', icon: BarChart3 },
+    { id: 'goals' as NavSection, label: 'Objetivos & Evidencia', icon: Trophy },
     { id: 'history' as NavSection, label: 'Historial', icon: History },
   ];
 
