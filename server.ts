@@ -1,8 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { GoogleGenAI } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,7 +117,7 @@ REGLAS DE ORO OBLIGATORIAS:
    - Estimaciones de tendencia (proyecciones orientativas, aclarando el margen de incertidumbre).
 5. DIFERENCIÁ UNA DEBILIDAD REAL DE UNA FALTA DE REGISTROS: Si Santino no anotó lanzamientos o entradas con mano izquierda, NO afirmes que es malo con esa mano; señalá que no hay registros suficientes para evaluarla.
 6. Si una pregunta no cuenta con datos suficientes para responderse, declaralo de forma explícita y explicá qué medición o registro permitiría responderla.
-7. Mantené un tono profesional, alentador y albirrojo (identidad de Instituto).
+7. Mantené un tono profesional, alentador y albirrojo (identidad de Instituto). Cuando Santino exprese frustración o enojo tras una mala práctica, recordale que el progreso no es lineal y que los datos muestran su evolución general.
 
 CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
 - Atleta: ${context?.profile?.name || 'Santino'} (${context?.profile?.club || 'IACC'}, categoría ${context?.profile?.category || 'U17'})
@@ -137,37 +139,83 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
 
     if (apiKey) {
       try {
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI();
-
-        // Convert messages to contents format
-        const contents = messages.map((m: any) => ({
-          role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        }));
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents,
-          config: {
-            systemInstruction: sportsSystemInstruction,
-            temperature: 0.25,
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
           },
         });
 
-        const replyText = response.text || 'No se obtuvo una respuesta del analista.';
-        return res.json({
-          reply: replyText,
-          model: 'gemini-3.8-flash',
-          isRealAI: true,
-          timestamp: new Date().toISOString(),
-        });
+        // Convert messages to valid contents array
+        // 1. Map to user / model roles
+        const rawTurns = messages.map((m: any) => ({
+          role: (m.role === 'assistant' || m.role === 'model') ? ('model' as const) : ('user' as const),
+          text: typeof m.content === 'string' ? m.content.trim() : JSON.stringify(m.content),
+        })).filter(t => t.text.length > 0);
+
+        // 2. Ensure contents starts with a 'user' message and alternates roles
+        const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+        for (const turn of rawTurns) {
+          if (contents.length === 0 && turn.role !== 'user') {
+            // Skip leading assistant greeting so the conversation starts with a user turn
+            continue;
+          }
+          const prev = contents[contents.length - 1];
+          if (prev && prev.role === turn.role) {
+            prev.parts[0].text += `\n\n${turn.text}`;
+          } else {
+            contents.push({ role: turn.role, parts: [{ text: turn.text }] });
+          }
+        }
+
+        if (contents.length === 0) {
+          contents.push({
+            role: 'user',
+            parts: [{ text: lastUserMessage || 'Hola' }],
+          });
+        }
+
+        // Candidate models list: try gemini-3.1-flash-lite first (active quota), fallback to gemini-3.8-flash
+        const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+        let replyText: string | null = null;
+        let successfulModel = '';
+
+        for (const modelName of candidateModels) {
+          try {
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction: sportsSystemInstruction,
+              },
+            });
+
+            if (response.text) {
+              replyText = response.text;
+              successfulModel = modelName;
+              break;
+            }
+          } catch (modelErr: any) {
+            console.warn(`[Analyst API] Model ${modelName} error:`, modelErr?.message || modelErr);
+          }
+        }
+
+        if (replyText) {
+          return res.json({
+            reply: replyText,
+            model: successfulModel,
+            isRealAI: true,
+            timestamp: new Date().toISOString(),
+          });
+        }
       } catch (geminiErr: any) {
-        console.warn('Gemini API call failed, falling back to deterministic sports analyst:', geminiErr?.message);
+        console.warn('[Analyst API] Gemini integration error:', geminiErr?.message || geminiErr);
       }
     }
 
-    // Deterministic Sports Analyst Fallback (when GEMINI_API_KEY is not set or failed)
+    // Deterministic Sports Analyst Fallback (when GEMINI_API_KEY is not set or network fails)
     // Computes ground-truth answers directly from the sports analytics payload
     const qLower = lastUserMessage.toLowerCase();
     let reply = '';
@@ -224,6 +272,15 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
       } else {
         reply = `No hay mediciones de salto vertical registradas en el historial. Podés agregar tu primer test en la pestaña de Estadísticas para que comencemos a calcular tu curva de potencia.`;
       }
+    } else if (qLower.includes('tiro') || qLower.includes('triple') || qLower.includes('lanzamiento') || qLower.includes('efectividad')) {
+      reply = `**Análisis de Efectividad y Mecánica de Tiro:**\n\n` +
+        `En tus registros recientes contás con sesiones de tiro y técnica individual registradas.\n` +
+        `• **Recomendación analítica:** Para que la tendencia de tiro sea estadísticamente significativa, anotá siempre intentos totales vs convertidos separados por zona (tiros libres, triples de frente, esquinas y tras drible).\n` +
+        `• **Consistencia:** Mantener una rutina fija de 100 tiros post-entrenamiento en el patio suma volumen sin sobrecargar las piernas si el RPE se mantiene entre 4 y 6.`;
+    } else if (qLower.includes('u17') || qLower.includes('u21') || qLower.includes('instituto') || qLower.includes('club')) {
+      reply = `**Entrenamientos IACC (U17 vs U21):**\n\n` +
+        `Tu perfil está configurado para registrar sesiones diferenciadas entre U17 (tu categoría base) y citaciones/entrenamientos con U21 en el Sandrín.\n` +
+        `• **Gestión de Carga:** El ritmo y contacto en U21 suele demandar un RPE mayor (+1.5 a +2.0 puntos). Anotar rigurosamente el RPE y el sueño pospartido nos permite alertarte si se produce un pico agudo de carga interna.`;
     } else if (qLower.includes('objetivo') || qLower.includes('meta')) {
       if (goals.length > 0) {
         reply = `**Estado de Objetivos Vinculados con Evidencia:**\n\n` +
@@ -253,14 +310,14 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
         `• *¿Estoy trabajando suficiente mi mano izquierda?*\n` +
         `• *¿Cómo fue mi carga interna y fatiga esta semana?*\n` +
         `• *¿Qué tendencia muestra mi salto vertical?*\n` +
-        `• *¿Qué objetivos tienen respaldo de mediciones reales?*`;
+        `• *¿Qué objetivos tienen respaldo de mediciones reales?*\n` +
+        `• *Compará mis últimas cuatro semanas con las anteriores.*`;
     }
 
     return res.json({
       reply,
       model: 'courtside-sports-analytics-engine',
       isRealAI: false,
-      note: 'Respuesta generada mediante el motor analítico determinista de Courtside (para respuestas mediante LLM Gemini en vivo, asegurate de configurar GEMINI_API_KEY en las variables de entorno del servidor).',
       timestamp: new Date().toISOString(),
     });
   });

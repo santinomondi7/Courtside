@@ -315,23 +315,67 @@ export const PerformanceAnalystView: React.FC<Props> = ({
                 )}
 
                 <div
-                  className={`max-w-[85%] sm:max-w-[78%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed whitespace-pre-line ${
+                  className={`max-w-[85%] sm:max-w-[78%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
                     isUser
-                      ? 'bg-[#FF6B2C] text-black font-medium shadow-md shadow-[#FF6B2C]/10'
+                      ? 'bg-[#FF6B2C] text-black font-medium shadow-md shadow-[#FF6B2C]/10 whitespace-pre-line'
                       : 'bg-[#0B0D10] text-[#DCE2EC] border border-[#202734]'
                   }`}
                 >
-                  <p>{msg.content}</p>
+                  {isUser ? (
+                    <p>{msg.content}</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {msg.content.split('\n').map((line, lIdx) => {
+                        if (!line.trim()) return <div key={lIdx} className="h-1.5" />;
+                        const parts = line.split(/(\*\*.*?\*\*)/g);
+                        const parsedLine = parts.map((part, pIdx) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return (
+                              <strong key={pIdx} className="font-bold text-white">
+                                {part.slice(2, -2)}
+                              </strong>
+                            );
+                          }
+                          return part;
+                        });
+
+                        if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
+                          return (
+                            <div key={lIdx} className="flex gap-2 items-start pl-1">
+                              <span className="text-[#FF6B2C] select-none shrink-0">•</span>
+                              <span className="flex-1">{parsedLine}</span>
+                            </div>
+                          );
+                        }
+
+                        return <p key={lIdx}>{parsedLine}</p>;
+                      })}
+                    </div>
+                  )}
 
                   <div
-                    className={`mt-2 flex items-center justify-between text-[10px] ${
+                    className={`mt-2.5 flex items-center justify-between text-[10px] ${
                       isUser ? 'text-black/70' : 'text-[#6D7787]'
                     }`}
                   >
                     <span>{msg.timestamp}</span>
-                    {!isUser && msg.modelUsed && (
-                      <span className="font-mono text-[9px] opacity-75">
-                        {msg.modelUsed === 'gemini-3.8-flash' ? '⚡ Gemini 3.8 Flash' : '🧠 Motor Deportivo Courtside'}
+                    {!isUser && (
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-semibold flex items-center gap-1.5 ${
+                        msg.isRealAI
+                          ? 'bg-[#FF6B2C]/15 text-[#FF6B2C] border border-[#FF6B2C]/30'
+                          : 'bg-[#1E2530] text-[#9299A5] border border-[#2A3442]'
+                      }`}>
+                        {msg.isRealAI ? (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5" />
+                            <span>IA Gemini ({msg.modelUsed?.replace('gemini-', '') || 'Activa'})</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            <span>Motor Deportivo Courtside</span>
+                          </>
+                        )}
                       </span>
                     )}
                   </div>
@@ -349,19 +393,30 @@ export const PerformanceAnalystView: React.FC<Props> = ({
           {isLoading && (
             <div className="flex gap-3 justify-start items-center">
               <div className="w-8 h-8 rounded-xl bg-[#FF6B2C]/15 border border-[#FF6B2C]/30 flex items-center justify-center text-[#FF6B2C] shrink-0">
-                <Bot className="w-4 h-4 animate-spin" />
+                <Bot className="w-4 h-4 animate-spin text-[#FF6B2C]" />
               </div>
               <div className="p-3.5 rounded-2xl bg-[#0B0D10] border border-[#202734] text-xs text-[#9299A5] flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#FF6B2C] animate-ping" />
-                <span>Consultando historial deportivo y calculando métricas reales...</span>
+                <span>Analizando historial deportivo de Instituto con IA...</span>
               </div>
             </div>
           )}
 
           {errorMessage && (
-            <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
+            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button
+                onClick={() => {
+                  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+                  if (lastUser) handleSendMessage(lastUser.content);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold text-[11px] transition shrink-0"
+              >
+                Reintentar
+              </button>
             </div>
           )}
 
