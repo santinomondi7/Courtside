@@ -329,8 +329,7 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
         middlewareMode: true,
         host: '0.0.0.0',
         port: PORT,
-        hmr: process.env.DISABLE_HMR !== 'true',
-        watch: process.env.DISABLE_HMR === 'true' ? null : {},
+        hmr: false,
       },
       appType: 'spa',
     });
