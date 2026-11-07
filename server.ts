@@ -44,6 +44,17 @@ async function startServer() {
 
   app.use(express.json({ limit: '10mb' }));
 
+  // Global CORS and Preflight handling for cross-origin, mobile, and desktop PWA access
+  app.use((_req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    if (_req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // API Route: Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
@@ -91,6 +102,16 @@ async function startServer() {
       success: true,
       updatedAt: store[syncCode].updatedAt,
       version: store[syncCode].version,
+    });
+  });
+
+  // API Route: Basketball Performance Analyst (Diagnostic check)
+  app.get('/api/analyst/chat', (_req, res) => {
+    res.json({
+      status: 'ok',
+      endpoint: '/api/analyst/chat',
+      ready: true,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     });
   });
 
@@ -323,7 +344,13 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
   });
 
   // Setup Vite middlewares in dev, or static files in prod
-  if (!isProd) {
+  const distPath = path.join(__dirname, 'dist');
+  if (isProd && fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -334,12 +361,6 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
   }
 
   app.listen(PORT, '0.0.0.0', () => {

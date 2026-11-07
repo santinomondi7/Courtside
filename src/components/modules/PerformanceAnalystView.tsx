@@ -29,6 +29,7 @@ import {
   compareEquivalentPeriods,
   analyzeGoalEvidence,
 } from '../../services/sportsAnalytics';
+import { generateLocalAnalystReply } from '../../services/sportsAnalystEngine';
 
 interface Props {
   profile: UserProfile;
@@ -202,31 +203,56 @@ export const PerformanceAnalystView: React.FC<Props> = ({
         })),
       };
 
-      const res = await fetch('/api/analyst/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          context: contextPayload,
-        }),
-      });
+      let replyContent = '';
+      let modelUsed = '';
+      let isRealAI = false;
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `HTTP ${res.status}`);
+      try {
+        const res = await fetch('/api/analyst/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+            context: contextPayload,
+          }),
+        });
+
+        if (res.ok) {
+          const resData = await res.json();
+          replyContent = resData.reply;
+          modelUsed = resData.model;
+          isRealAI = resData.isRealAI;
+        } else {
+          // If backend returns 404 or any HTTP error, activate client-side sports analyst engine seamlessly
+          console.warn(`Analyst API responded with HTTP ${res.status}. Falling back to local sports analytics engine.`);
+          const localFallback = generateLocalAnalystReply(promptToSend, contextPayload);
+          replyContent = localFallback.reply;
+          modelUsed = 'courtside-sports-analytics-engine';
+          isRealAI = false;
+        }
+      } catch (fetchErr) {
+        // If offline or network error reaching server, use local sports analytics engine
+        console.warn('Network issue reaching /api/analyst/chat. Using local sports analytics engine:', fetchErr);
+        const localFallback = generateLocalAnalystReply(promptToSend, contextPayload);
+        replyContent = localFallback.reply;
+        modelUsed = 'courtside-sports-analytics-engine';
+        isRealAI = false;
       }
 
-      const resData = await res.json();
-      const assistantMessage: ChatMessage = {
-        id: `asst-${Date.now()}`,
-        role: 'assistant',
-        content: resData.reply,
-        timestamp: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: resData.model,
-        isRealAI: resData.isRealAI,
-      };
+      if (replyContent) {
+        const assistantMessage: ChatMessage = {
+          id: `asst-${Date.now()}`,
+          role: 'assistant',
+          content: replyContent,
+          timestamp: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+          modelUsed,
+          isRealAI,
+        };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev) => [...prev, assistantMessage]);
+      } else {
+        setErrorMessage('No se pudo generar una respuesta analítica. Intentá nuevamente.');
+      }
     } catch (err: any) {
       console.error('Chat error:', err);
       setErrorMessage(
