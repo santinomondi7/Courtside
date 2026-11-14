@@ -116,8 +116,13 @@ export const Dashboard: React.FC<Props> = ({
   const overallShootingAccuracy =
     totalShotsAttempted > 0 ? Math.round((totalShotsMade / totalShotsAttempted) * 100) : null;
 
-  // Best vertical jump measurement
-  const jumpMeasurements = measurements.filter((m) => m.testType === 'vertical_jump');
+  // Best vertical jump measurement (bilateral CMJ, arm-swing, or approach)
+  const jumpMeasurements = measurements.filter(
+    (m) =>
+      m.testType === 'vertical_jump' ||
+      m.testType === 'vertical_jump_arms' ||
+      m.testType === 'approach_jump'
+  );
   const bestJump = jumpMeasurements.reduce(
     (max, m) => (m.result > (max?.result || 0) ? m : max),
     null as PhysicalMeasurement | null

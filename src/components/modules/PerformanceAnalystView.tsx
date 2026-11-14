@@ -69,7 +69,7 @@ export const PerformanceAnalystView: React.FC<Props> = ({
       {
         id: 'msg-welcome',
         role: 'assistant',
-        content: `Hola ${profile.name || 'Santino'}. Soy tu **Basketball Performance Analyst** en COURTSIDE.\n\nAnalizo conjuntamente tus registros de entrenamientos en Instituto (U17/U21), gimnasio del club, técnica individual en patio, físico en casa y mediciones de salto y velocidad.\n\n¿Qué te gustaría analizar hoy? Podés elegir una de las preguntas sugeridas o escribirme directamente.`,
+        content: `Hola ${profile.name || 'Santino'}. Soy tu **Basketball Performance Analyst** en COURTSIDE.\n\nNo me limito solo a leer estadísticas: podés preguntarme **lo que necesites** sobre cómo mejorar tu **salto vertical (CMJ sin brazos, salto con brazos/Abalakov, saltos a un pie)**, técnica de tiro, primer paso, mano izquierda, gimnasio, descanso o manejo de la frustración, además de analizar tus datos reales de Instituto (U17/U21).\n\n¿Qué querés trabajar o analizar hoy?`,
         timestamp: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
         modelUsed: 'courtside-sports-analytics',
         isRealAI: true,
@@ -160,11 +160,70 @@ export const PerformanceAnalystView: React.FC<Props> = ({
           notes: a.notes,
         }));
 
+      const sortedMeas = [...measurements].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const latestByType = (testType: PhysicalMeasurement['testType']) => {
+        const found = sortedMeas.find((m) => m.testType === testType);
+        return found ? { result: found.result, date: found.date } : null;
+      };
+
+      const cmjLatest = latestByType('vertical_jump');
+      const armsLatest = latestByType('vertical_jump_arms');
+      const leftLegLatest = latestByType('single_leg_jump_left');
+      const rightLegLatest = latestByType('single_leg_jump_right');
+      const approachLatest = latestByType('approach_jump');
+
+      const armGainCm =
+        cmjLatest && armsLatest ? Number((armsLatest.result - cmjLatest.result).toFixed(1)) : null;
+      const armGainPct =
+        cmjLatest && armsLatest && cmjLatest.result > 0
+          ? Number((((armsLatest.result - cmjLatest.result) / cmjLatest.result) * 100).toFixed(1))
+          : null;
+      const singleLegAsymmetryPct =
+        leftLegLatest && rightLegLatest && Math.max(leftLegLatest.result, rightLegLatest.result) > 0
+          ? Number(
+              (
+                (Math.abs(leftLegLatest.result - rightLegLatest.result) /
+                  Math.max(leftLegLatest.result, rightLegLatest.result)) *
+                100
+              ).toFixed(1)
+            )
+          : null;
+
+      const jumpBreakdown = {
+        cmjLatest,
+        armsLatest,
+        leftLegLatest,
+        rightLegLatest,
+        approachLatest,
+        armGainCm,
+        armGainPct,
+        singleLegAsymmetryPct,
+      };
+
+      const shootingActs = activities.filter(
+        (a) =>
+          (a.status === 'completed' || a.status === 'partial') &&
+          a.basketballAttempts &&
+          a.basketballAttempts > 0
+      );
+      const totalAttempts = shootingActs.reduce((acc, a) => acc + (a.basketballAttempts || 0), 0);
+      const totalMakes = shootingActs.reduce((acc, a) => acc + (a.basketballMakes || 0), 0);
+      const shootingSummary = {
+        sessions: shootingActs.length,
+        attempts: totalAttempts,
+        makes: totalMakes,
+        accuracyPct: totalAttempts > 0 ? Number(((totalMakes / totalAttempts) * 100).toFixed(1)) : null,
+      };
+
       const contextPayload = {
         profile,
         activitiesCount: activities.length,
         measurementsCount: measurements.length,
         goalsCount: goals.length,
+        jumpBreakdown,
+        shootingSummary,
         weaknesses,
         weeklyWorkloadSummary: {
           totalMinutes: weeklyLoad.totalMinutes,
@@ -195,11 +254,13 @@ export const PerformanceAnalystView: React.FC<Props> = ({
         recentActivities,
         measurements: measurements.map((m) => ({
           date: m.date,
+          type: m.testType,
           name: m.testName,
           result: m.result,
           unit: m.unit,
           method: m.method,
           isPersonalRecord: m.isPersonalRecord,
+          notes: m.notes,
         })),
       };
 
@@ -264,14 +325,14 @@ export const PerformanceAnalystView: React.FC<Props> = ({
   };
 
   const suggestedQuestions = [
+    '¿Cómo puedo mejorar mi salto vertical y el despegue a un pie?',
+    'Analizá mi CMJ vs salto con brazos y saltos a un pie',
+    '¿Qué ejercicios me ayudan a mejorar mi primer paso?',
     '¿Cuál es mi principal debilidad según mis registros?',
-    '¿Estoy trabajando suficiente mi mano izquierda?',
     '¿Cómo fue mi carga interna y fatiga esta semana?',
-    '¿Qué tendencia muestra mi salto vertical?',
     '¿Qué objetivos tienen respaldo de mediciones reales?',
-    'Compará mis últimas cuatro semanas con las anteriores',
-    '¿Qué datos me faltan para evaluar mi potencia?',
-    '¿Estoy entrenando más o realmente estoy mejorando?',
+    '¿Cómo mejorar mi tiro y mi mano izquierda?',
+    '¿Qué debería comer y descansar para rendir mejor en U17/U21?',
   ];
 
   return (
@@ -292,7 +353,7 @@ export const PerformanceAnalystView: React.FC<Props> = ({
               </span>
             </div>
             <p className="text-xs text-[#9299A5]">
-              Asistente de inteligencia artificial basado exclusivamente en tu historial real de Instituto, gimnasio y técnica.
+              Consultá abiertamente sobre cómo mejorar tu salto, técnica, físico o mentalidad, con el respaldo de tu historial en IACC.
             </p>
           </div>
         </div>
@@ -352,29 +413,62 @@ export const PerformanceAnalystView: React.FC<Props> = ({
                   ) : (
                     <div className="space-y-1.5">
                       {msg.content.split('\n').map((line, lIdx) => {
-                        if (!line.trim()) return <div key={lIdx} className="h-1.5" />;
-                        const parts = line.split(/(\*\*.*?\*\*)/g);
-                        const parsedLine = parts.map((part, pIdx) => {
-                          if (part.startsWith('**') && part.endsWith('**')) {
-                            return (
-                              <strong key={pIdx} className="font-bold text-white">
-                                {part.slice(2, -2)}
-                              </strong>
-                            );
-                          }
-                          return part;
-                        });
+                        const trimmed = line.trim();
+                        if (!trimmed) return <div key={lIdx} className="h-1.5" />;
 
-                        if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
+                        const renderInline = (text: string) => {
+                          const parts = text.split(/(\*\*.*?\*\*|\*[^*]+\*)/g);
+                          return parts.map((part, pIdx) => {
+                            if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+                              return (
+                                <strong key={pIdx} className="font-bold text-white">
+                                  {part.slice(2, -2)}
+                                </strong>
+                              );
+                            }
+                            if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+                              return (
+                                <em key={pIdx} className="italic text-[#B5C0D0]">
+                                  {part.slice(1, -1)}
+                                </em>
+                              );
+                            }
+                            return part;
+                          });
+                        };
+
+                        if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
+                          const headingText = trimmed.replace(/^#{2,3}\s+/, '');
+                          return (
+                            <p key={lIdx} className="text-xs sm:text-sm font-bold text-[#FF6B2C] pt-1">
+                              {renderInline(headingText)}
+                            </p>
+                          );
+                        }
+
+                        if (/^(?:•|-|\*)\s+/.test(trimmed) || trimmed.startsWith('•') || trimmed.startsWith('-')) {
+                          const bulletText = trimmed.replace(/^(?:•|-|\*)\s*/, '');
                           return (
                             <div key={lIdx} className="flex gap-2 items-start pl-1">
                               <span className="text-[#FF6B2C] select-none shrink-0">•</span>
-                              <span className="flex-1">{parsedLine}</span>
+                              <span className="flex-1">{renderInline(bulletText)}</span>
                             </div>
                           );
                         }
 
-                        return <p key={lIdx}>{parsedLine}</p>;
+                        const numMatch = trimmed.match(/^(\d+\.)\s+(.*)$/);
+                        if (numMatch) {
+                          return (
+                            <div key={lIdx} className="flex gap-2 items-start pl-1">
+                              <span className="text-[#FF6B2C] font-bold select-none shrink-0">
+                                {numMatch[1]}
+                              </span>
+                              <span className="flex-1">{renderInline(numMatch[2])}</span>
+                            </div>
+                          );
+                        }
+
+                        return <p key={lIdx}>{renderInline(line)}</p>;
                       })}
                     </div>
                   )}
@@ -483,7 +577,7 @@ export const PerformanceAnalystView: React.FC<Props> = ({
             type="text"
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
-            placeholder="Preguntale al Performance Analyst (ej. ¿Estoy acumulando fatiga? ¿Qué tal mi tiro?)..."
+            placeholder="Preguntame lo que necesites: cómo mejorar tu salto, CMJ vs con brazos, saltos a un pie, tiro, descanso..."
             disabled={isLoading}
             className="flex-1 bg-[#0B0D10] border border-[#252E3C] focus:border-[#FF6B2C] rounded-2xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-[#6D7787] outline-none transition"
           />

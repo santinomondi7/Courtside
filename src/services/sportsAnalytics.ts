@@ -152,8 +152,15 @@ export function analyzeWeaknessesAndImbalances(
   const speedMeasurements60 = measurements.filter(
     (m) => (m.testType.startsWith('sprint') || m.testType === 'agility_t_test') && new Date(m.date) >= days60Cutoff
   );
+  const jumpTestTypes = [
+    'vertical_jump',
+    'vertical_jump_arms',
+    'single_leg_jump_left',
+    'single_leg_jump_right',
+    'approach_jump',
+  ];
   const jumpMeasurements60 = measurements.filter(
-    (m) => m.testType === 'vertical_jump' && new Date(m.date) >= days60Cutoff
+    (m) => jumpTestTypes.includes(m.testType) && new Date(m.date) >= days60Cutoff
   );
 
   if (gymSessions30.length >= 6 && speedMeasurements60.length === 0) {
@@ -182,7 +189,7 @@ export function analyzeWeaknessesAndImbalances(
       category: 'evaluacion',
       title: 'Falta de re-testeo de salto vertical tras bloque de sobrecarga',
       description:
-        'Tenés alta continuidad en entrenamientos de pesas, pero pasaron más de 60 días sin registrar un test de salto vertical (CMJ).',
+        'Tenés alta continuidad en entrenamientos de pesas, pero pasaron más de 60 días sin registrar un test de salto vertical (CMJ, salto con brazos o a un pie).',
       backingData: `${gymSessions30.length} sesiones de pesas registradas vs 0 mediciones de salto en los últimos 60 días.`,
       periodAnalyzed: 'Últimos 60 días',
       sessionsCount: gymSessions30.length,
@@ -190,8 +197,90 @@ export function analyzeWeaknessesAndImbalances(
       whyRelevant:
         'El salto vertical es el indicador estándar de potencia neuromuscular en básquetbol. Permite evaluar si las cargas del gimnasio están optimizando la potencia.',
       followUpAction:
-        'Aprovechá un día posterior a descanso para medir tu salto vertical en la app y comparar con tu récord previo.',
+        'Aprovechá un día posterior a descanso para medir tu CMJ, salto con brazos y saltos a un pie en la app para comparar con tu récord previo.',
     });
+  }
+
+  // ------------------------------------------------------------
+  // PATRÓN 2B: Asimetría en Saltos a Un Pie (Izquierdo vs Derecho) y Aporte de Brazos
+  // ------------------------------------------------------------
+  const latestLeftJump = measurements
+    .filter((m) => m.testType === 'single_leg_jump_left')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  const latestRightJump = measurements
+    .filter((m) => m.testType === 'single_leg_jump_right')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+  if (latestLeftJump && latestRightJump) {
+    const maxLeg = Math.max(latestLeftJump.result, latestRightJump.result);
+    const minLeg = Math.min(latestLeftJump.result, latestRightJump.result);
+    const asymmetryPct = maxLeg > 0 ? Number((((maxLeg - minLeg) / maxLeg) * 100).toFixed(1)) : 0;
+    const weakerSide = latestLeftJump.result < latestRightJump.result ? 'izquierda' : 'derecha';
+
+    if (asymmetryPct >= 10) {
+      observations.push({
+        id: 'weakness-single-leg-asymmetry',
+        kind: asymmetryPct >= 15 ? 'debilidad_demostrada' : 'desequilibrio_carga',
+        category: 'fisico',
+        title: `Asimetría bilateral de ${asymmetryPct}% en saltos a un pie`,
+        description: `Tu último salto a un pie muestra ${latestLeftJump.result} cm con pierna izquierda vs ${latestRightJump.result} cm con pierna derecha (${asymmetryPct}% de diferencia a favor de la pierna ${weakerSide === 'izquierda' ? 'derecha' : 'izquierda'}).`,
+        backingData: `Pie izquierdo: ${latestLeftJump.result} cm (${latestLeftJump.date}) vs Pie derecho: ${latestRightJump.result} cm (${latestRightJump.date}).`,
+        periodAnalyzed: 'Últimas mediciones unipodales',
+        sessionsCount: 2,
+        confidence: 'alto',
+        whyRelevant:
+          'En básquetbol, una asimetría mayor al 10-15% entre piernas reduce la potencia en despegues de bandeja por un perfil y aumenta el estrés articular en aterrizajes y cambios de dirección.',
+        followUpAction:
+          `Sumar trabajo unilateral compensatorio (subidas al cajón, búlgaras o saltos a un pie) priorizando iniciar las series con la pierna ${weakerSide} y consultarlo con el PF de Instituto.`,
+      });
+    }
+  } else if ((latestLeftJump && !latestRightJump) || (!latestLeftJump && latestRightJump)) {
+    const missingSide = latestLeftJump ? 'derecha' : 'izquierda';
+    observations.push({
+      id: 'weakness-single-leg-incomplete',
+      kind: 'carencia_de_registros',
+      category: 'evaluacion',
+      title: `Falta registrar el salto a un pie con pierna ${missingSide}`,
+      description: `Registraste tu salto unilateral de una pierna, pero falta la medición de la pierna ${missingSide} para poder calcular tu porcentaje de simetría bilateral.`,
+      backingData: latestLeftJump
+        ? `Pie izquierdo medido (${latestLeftJump.result} cm), 0 registros de pie derecho.`
+        : `Pie derecho medido (${latestRightJump.result} cm), 0 registros de pie izquierdo.`,
+      periodAnalyzed: 'Mediciones unipodales',
+      sessionsCount: 1,
+      confidence: 'alto',
+      whyRelevant:
+        'Medir ambos perfiles permite detectar desequilibrios ocultos entre tu pierna de pique habitual y la contraria.',
+      followUpAction: `Registrá una medición de salto a un pie con pierna ${missingSide} en Estadísticas.`,
+    });
+  }
+
+  const latestCMJ = measurements
+    .filter((m) => m.testType === 'vertical_jump')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  const latestArmsJump = measurements
+    .filter((m) => m.testType === 'vertical_jump_arms')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+  if (latestCMJ && latestArmsJump && latestCMJ.result > 0) {
+    const armDiff = Number((latestArmsJump.result - latestCMJ.result).toFixed(1));
+    const armGainPct = Number(((armDiff / latestCMJ.result) * 100).toFixed(1));
+    if (armGainPct < 5) {
+      observations.push({
+        id: 'weakness-arm-swing-coordination',
+        kind: 'desequilibrio_carga',
+        category: 'fisico',
+        title: `Bajo aprovechamiento del impulso de brazos al saltar (+${armDiff} cm / ${armGainPct}%)`,
+        description: `Tu CMJ sin brazos es de ${latestCMJ.result} cm y tu salto con brazos es de ${latestArmsJump.result} cm. Normalmente un buen balanceo de brazos aporta entre +10% y +15% extra de altura.`,
+        backingData: `CMJ sin brazos: ${latestCMJ.result} cm (${latestCMJ.date}) vs Con brazos: ${latestArmsJump.result} cm (${latestArmsJump.date}).`,
+        periodAnalyzed: 'Comparativa CMJ vs Abalakov',
+        sessionsCount: 2,
+        confidence: 'medio',
+        whyRelevant:
+          'Coordinar el envión enérgico de los brazos con la extensión de cadera y tobillos permite ganar centímetros inmediatos en rebotes, tapones y volcadas sin necesidad de esperar meses de pesas.',
+        followUpAction:
+          'Practicar saltos con énfasis en llevar los brazos rápido de atrás hacia arriba en el despegue y re-testear en 3 semanas.',
+      });
+    }
   }
 
   // ------------------------------------------------------------
@@ -227,9 +316,20 @@ export function analyzeWeaknessesAndImbalances(
     .forEach((goal) => {
       // Find matching measurements
       const related = measurements.filter((m) => {
-        if (goal.category === 'vertical_jump' && m.testType === 'vertical_jump') return true;
-        if (goal.category === 'speed' && m.testType.startsWith('sprint')) return true;
-        if (goal.category === 'strength' && (m.testType === 'trap_bar_deadlift' || m.testType === 'bench_press')) return true;
+        if (goal.category === 'vertical_jump') {
+          const titleLower = goal.title.toLowerCase();
+          if (titleLower.includes('brazos') || titleLower.includes('abalakov')) return m.testType === 'vertical_jump_arms';
+          if (titleLower.includes('izquierd')) return m.testType === 'single_leg_jump_left';
+          if (titleLower.includes('derech')) return m.testType === 'single_leg_jump_right';
+          if (titleLower.includes('un pie') || titleLower.includes('unipodal')) {
+            return m.testType === 'single_leg_jump_left' || m.testType === 'single_leg_jump_right';
+          }
+          if (titleLower.includes('carrera') || titleLower.includes('approach')) return m.testType === 'approach_jump';
+          return m.testType === 'vertical_jump' || m.testType === 'vertical_jump_arms';
+        }
+        if (goal.category === 'speed' && (m.testType.startsWith('sprint') || m.testType === 'agility_t_test')) return true;
+        if (goal.category === 'acceleration' && m.testType.startsWith('sprint')) return true;
+        if (goal.category === 'strength' && (m.testType === 'trap_bar_deadlift' || m.testType === 'bench_press' || m.testType === 'pull_ups')) return true;
         return false;
       });
 
@@ -359,11 +459,20 @@ export function predictProgressTrends(
     const first = list[0];
     const latest = list[list.length - 1];
 
-    // Find linked goal if any
+    // Find linked goal if any (match strictly to avoid mixing incompatible jump protocols)
     const linkedGoal = goals.find((g) => {
-      if (testType === 'vertical_jump' && g.category === 'vertical_jump') return true;
-      if (testType.startsWith('sprint') && g.category === 'speed') return true;
-      if (testType === 'trap_bar_deadlift' && g.category === 'strength') return true;
+      const titleLower = g.title.toLowerCase();
+      if (g.category === 'vertical_jump') {
+        if (testType === 'vertical_jump_arms') return titleLower.includes('brazos') || titleLower.includes('abalakov');
+        if (testType === 'single_leg_jump_left') return titleLower.includes('izquierd') || titleLower.includes('un pie');
+        if (testType === 'single_leg_jump_right') return titleLower.includes('derech') || titleLower.includes('un pie');
+        if (testType === 'approach_jump') return titleLower.includes('carrera') || titleLower.includes('approach');
+        if (testType === 'vertical_jump') {
+          return !titleLower.includes('brazos') && !titleLower.includes('abalakov') && !titleLower.includes('un pie');
+        }
+      }
+      if (testType.startsWith('sprint') && (g.category === 'speed' || g.category === 'acceleration')) return true;
+      if ((testType === 'trap_bar_deadlift' || testType === 'bench_press') && g.category === 'strength') return true;
       return false;
     });
 
@@ -847,6 +956,10 @@ export interface EquivalentPeriodComparison {
     shooting3pt?: PeriodMetricComparison;
     shootingMidRange?: PeriodMetricComparison;
     verticalJumpCMJ?: PeriodMetricComparison;
+    verticalJumpArms?: PeriodMetricComparison;
+    singleLegJumpLeft?: PeriodMetricComparison;
+    singleLegJumpRight?: PeriodMetricComparison;
+    approachJump?: PeriodMetricComparison;
     sprint5m?: PeriodMetricComparison;
     strengthTrapBar?: PeriodMetricComparison;
   };
@@ -954,6 +1067,21 @@ export function compareEquivalentPeriods(
   const avgJumpA = jumpsA.length ? jumpsA.reduce((s, m) => s + m.result, 0) / jumpsA.length : 0;
   const avgJumpB = jumpsB.length ? jumpsB.reduce((s, m) => s + m.result, 0) / jumpsB.length : 0;
 
+  const jumpsArmsA = filterMeas(rangeA.start, rangeA.end, 'vertical_jump_arms');
+  const jumpsArmsB = filterMeas(rangeB.start, rangeB.end, 'vertical_jump_arms');
+  const avgArmsA = jumpsArmsA.length ? jumpsArmsA.reduce((s, m) => s + m.result, 0) / jumpsArmsA.length : 0;
+  const avgArmsB = jumpsArmsB.length ? jumpsArmsB.reduce((s, m) => s + m.result, 0) / jumpsArmsB.length : 0;
+
+  const jumpLeftA = filterMeas(rangeA.start, rangeA.end, 'single_leg_jump_left');
+  const jumpLeftB = filterMeas(rangeB.start, rangeB.end, 'single_leg_jump_left');
+  const avgLeftA = jumpLeftA.length ? jumpLeftA.reduce((s, m) => s + m.result, 0) / jumpLeftA.length : 0;
+  const avgLeftB = jumpLeftB.length ? jumpLeftB.reduce((s, m) => s + m.result, 0) / jumpLeftB.length : 0;
+
+  const jumpRightA = filterMeas(rangeA.start, rangeA.end, 'single_leg_jump_right');
+  const jumpRightB = filterMeas(rangeB.start, rangeB.end, 'single_leg_jump_right');
+  const avgRightA = jumpRightA.length ? jumpRightA.reduce((s, m) => s + m.result, 0) / jumpRightA.length : 0;
+  const avgRightB = jumpRightB.length ? jumpRightB.reduce((s, m) => s + m.result, 0) / jumpRightB.length : 0;
+
   const sprintA = filterMeas(rangeA.start, rangeA.end, 'sprint_5m');
   const sprintB = filterMeas(rangeB.start, rangeB.end, 'sprint_5m');
   const avgSprintA = sprintA.length ? sprintA.reduce((s, m) => s + m.result, 0) / sprintA.length : 0;
@@ -978,12 +1106,45 @@ export function compareEquivalentPeriods(
 
   if (jumpsA.length || jumpsB.length) {
     performanceMetrics.verticalJumpCMJ = makeComparison(
-      'Salto Vertical (CMJ)',
+      'Salto Vertical CMJ (sin brazos)',
       'cm',
       avgJumpA,
       avgJumpB,
       jumpsA.length,
       jumpsB.length
+    );
+  }
+
+  if (jumpsArmsA.length || jumpsArmsB.length) {
+    performanceMetrics.verticalJumpArms = makeComparison(
+      'Salto Vertical con Brazos (Abalakov)',
+      'cm',
+      avgArmsA,
+      avgArmsB,
+      jumpsArmsA.length,
+      jumpsArmsB.length
+    );
+  }
+
+  if (jumpLeftA.length || jumpLeftB.length) {
+    performanceMetrics.singleLegJumpLeft = makeComparison(
+      'Salto a Un Pie (Izquierda)',
+      'cm',
+      avgLeftA,
+      avgLeftB,
+      jumpLeftA.length,
+      jumpLeftB.length
+    );
+  }
+
+  if (jumpRightA.length || jumpRightB.length) {
+    performanceMetrics.singleLegJumpRight = makeComparison(
+      'Salto a Un Pie (Derecha)',
+      'cm',
+      avgRightA,
+      avgRightB,
+      jumpRightA.length,
+      jumpRightB.length
     );
   }
 
@@ -1118,11 +1279,18 @@ export function analyzeGoalEvidence(
     goal.initialValue !== undefined &&
     goal.targetValue < goal.initialValue;
 
-  // Find linked measurements
+  // Find linked measurements (avoid mixing incompatible jump protocols)
   const linkedMeasurements = measurements.filter((m) => {
-    if (goal.category === 'vertical_jump' && m.testType === 'vertical_jump') return true;
-    if (goal.category === 'speed' && m.testType.startsWith('sprint')) return true;
-    if (goal.category === 'strength' && (m.testType === 'trap_bar_deadlift' || m.testType === 'bench_press')) return true;
+    if (goal.category === 'vertical_jump') {
+      const titleLower = goal.title.toLowerCase();
+      if (titleLower.includes('brazos') || titleLower.includes('abalakov')) return m.testType === 'vertical_jump_arms';
+      if (titleLower.includes('izquierd')) return m.testType === 'single_leg_jump_left';
+      if (titleLower.includes('derech')) return m.testType === 'single_leg_jump_right';
+      if (titleLower.includes('carrera') || titleLower.includes('approach')) return m.testType === 'approach_jump';
+      return m.testType === 'vertical_jump';
+    }
+    if ((goal.category === 'speed' || goal.category === 'acceleration') && (m.testType.startsWith('sprint') || m.testType === 'agility_t_test')) return true;
+    if (goal.category === 'strength' && (m.testType === 'trap_bar_deadlift' || m.testType === 'bench_press' || m.testType === 'pull_ups')) return true;
     if (goal.category === 'recovery' && m.testName.toLowerCase().includes('recuper')) return true;
     return false;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());

@@ -150,29 +150,112 @@ export const StatsView: React.FC<Props> = ({
     .filter((a) => a.basketballAttempts && a.basketballAttempts > 0)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Vertical jump measurements
-  const jumpMeasurements = measurements
+  const JUMP_TEST_TYPES: MeasurementType[] = [
+    'vertical_jump',
+    'vertical_jump_arms',
+    'single_leg_jump_left',
+    'single_leg_jump_right',
+    'approach_jump',
+    'broad_jump',
+  ];
+
+  // Jump measurements by category
+  const cmjMeasurements = measurements
     .filter((m) => m.testType === 'vertical_jump')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Sprint measurements
-  const sprintMeasurements = measurements
-    .filter((m) => m.testType.startsWith('sprint'))
+  const armsJumpMeasurements = measurements
+    .filter((m) => m.testType === 'vertical_jump_arms')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const singleLegLeftMeasurements = measurements
+    .filter((m) => m.testType === 'single_leg_jump_left')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const singleLegRightMeasurements = measurements
+    .filter((m) => m.testType === 'single_leg_jump_right')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const allJumpMeasurements = measurements
+    .filter((m) => JUMP_TEST_TYPES.includes(m.testType))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // Speed, agility, strength & custom measurements
+  const otherMeasurements = measurements
+    .filter((m) => !JUMP_TEST_TYPES.includes(m.testType))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const latestCMJ = cmjMeasurements[cmjMeasurements.length - 1];
+  const latestArmsJump = armsJumpMeasurements[armsJumpMeasurements.length - 1];
+  const latestSingleLeft = singleLegLeftMeasurements[singleLegLeftMeasurements.length - 1];
+  const latestSingleRight = singleLegRightMeasurements[singleLegRightMeasurements.length - 1];
+
+  const armSwingGainCm =
+    latestCMJ && latestArmsJump ? Number((latestArmsJump.result - latestCMJ.result).toFixed(1)) : null;
+  const armSwingGainPct =
+    latestCMJ && latestArmsJump && latestCMJ.result > 0
+      ? Number((((latestArmsJump.result - latestCMJ.result) / latestCMJ.result) * 100).toFixed(1))
+      : null;
+
+  const singleLegAsymmetryPct =
+    latestSingleLeft && latestSingleRight && Math.max(latestSingleLeft.result, latestSingleRight.result) > 0
+      ? Number(
+          (
+            (Math.abs(latestSingleRight.result - latestSingleLeft.result) /
+              Math.max(latestSingleLeft.result, latestSingleRight.result)) *
+            100
+          ).toFixed(1)
+        )
+      : null;
+
+  const getJumpTypeBadge = (type: MeasurementType) => {
+    switch (type) {
+      case 'vertical_jump':
+        return { label: 'CMJ Sin Brazos', cls: 'bg-[#FF6B2C]/15 text-[#FF6B2C] border-[#FF6B2C]/30' };
+      case 'vertical_jump_arms':
+        return { label: 'Con Brazos (Abalakov)', cls: 'bg-[#B7F56A]/15 text-[#B7F56A] border-[#B7F56A]/30' };
+      case 'single_leg_jump_left':
+        return { label: '1 Pie Izquierdo', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/30' };
+      case 'single_leg_jump_right':
+        return { label: '1 Pie Derecho', cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30' };
+      case 'approach_jump':
+        return { label: 'Salto en Carrera', cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30' };
+      case 'broad_jump':
+        return { label: 'Salto Horizontal', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+      default:
+        return { label: 'Test', cls: 'bg-[#222A36] text-[#9299A5] border-[#303B4C]' };
+    }
+  };
+
+  const openMeasurementWithPreset = (type: MeasurementType) => {
+    handleTestTypeChange(type);
+    setShowAddMeasurementModal(true);
+  };
 
   const handleCreateMeasurement = (e: React.FormEvent) => {
     e.preventDefault();
     if (!resultVal || isNaN(Number(resultVal))) return;
 
+    const numericResult = Number(resultVal);
+    const sameType = measurements.filter((m) => m.testType === testType);
+    const isLowerBetter = testType.startsWith('sprint') || testType === 'agility_t_test';
+    const isPersonalRecord =
+      sameType.length === 0
+        ? true
+        : isLowerBetter
+        ? sameType.every((m) => numericResult < m.result)
+        : sameType.every((m) => numericResult > m.result);
+
     onSaveMeasurement({
       id: `meas-${Date.now()}`,
       date: measDate,
       testType,
-      testName,
-      result: Number(resultVal),
+      testName: testName.trim() || 'Test físico',
+      result: numericResult,
       unit: unitVal,
       method: methodVal,
       notes: measNotes.trim() || undefined,
+      isPersonalRecord,
     });
 
     setShowAddMeasurementModal(false);
@@ -183,10 +266,40 @@ export const StatsView: React.FC<Props> = ({
     setTestType(type);
     switch (type) {
       case 'vertical_jump':
-        setTestName('Salto Vertical CMJ');
+        setTestName('Salto Vertical CMJ (sin brazos / manos en cintura)');
         setUnitVal('cm');
-        setResultVal('73');
-        setMethodVal('Test Vertec / Tablero marcado');
+        setResultVal(latestCMJ ? String(latestCMJ.result) : '68');
+        setMethodVal('Manos en cintura • Test Vertec / App');
+        break;
+      case 'vertical_jump_arms':
+        setTestName('Salto Vertical con Brazos (Abalakov)');
+        setUnitVal('cm');
+        setResultVal(latestArmsJump ? String(latestArmsJump.result) : '75');
+        setMethodVal('Con impulso de brazos • Vertec / Tablero');
+        break;
+      case 'single_leg_jump_left':
+        setTestName('Salto a Un Pie — Pierna Izquierda');
+        setUnitVal('cm');
+        setResultVal(latestSingleLeft ? String(latestSingleLeft.result) : '48');
+        setMethodVal('Despegue unipodal izquierdo • Vertec / App');
+        break;
+      case 'single_leg_jump_right':
+        setTestName('Salto a Un Pie — Pierna Derecha');
+        setUnitVal('cm');
+        setResultVal(latestSingleRight ? String(latestSingleRight.result) : '48');
+        setMethodVal('Despegue unipodal derecho • Vertec / App');
+        break;
+      case 'approach_jump':
+        setTestName('Salto en Carrera (Approach Jump)');
+        setUnitVal('cm');
+        setResultVal('80');
+        setMethodVal('Carrera 2-3 pasos • Tablero / Aro');
+        break;
+      case 'broad_jump':
+        setTestName('Salto Horizontal a Pies Juntos');
+        setUnitVal('cm');
+        setResultVal('235');
+        setMethodVal('Cinta métrica en piso');
         break;
       case 'sprint_10m':
         setTestName('Sprint aceleración 10 metros');
@@ -200,16 +313,34 @@ export const StatsView: React.FC<Props> = ({
         setResultVal('1.01');
         setMethodVal('Células fotoeléctricas');
         break;
+      case 'agility_t_test':
+        setTestName('Test de Agilidad T-Test');
+        setUnitVal('seg');
+        setResultVal('9.40');
+        setMethodVal('Conos + cronómetro en cancha');
+        break;
       case 'trap_bar_deadlift':
         setTestName('Trap Bar Deadlift (5RM)');
         setUnitVal('kg');
         setResultVal('110');
         setMethodVal('Barra hexagonal en IACC');
         break;
-      default:
-        setTestName('Test físico');
+      case 'bench_press':
+        setTestName('Press Banca (5RM)');
+        setUnitVal('kg');
+        setResultVal('70');
+        setMethodVal('Barra olímpica en gimnasio IACC');
+        break;
+      case 'pull_ups':
+        setTestName('Dominadas Máximas (Estrictas)');
         setUnitVal('reps');
-        setResultVal('15');
+        setResultVal('12');
+        setMethodVal('Peso corporal sin kipping');
+        break;
+      default:
+        setTestName('Test físico personalizado');
+        setUnitVal('cm');
+        setResultVal('50');
         setMethodVal('Manual');
         break;
     }
@@ -940,77 +1071,256 @@ export const StatsView: React.FC<Props> = ({
       {/* ============================================================== */}
       {activeTab === 'measurements' && (
         <div className="space-y-6">
+          {/* Biomechanical Jump Profile Summary */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-[#15191F] border border-[#222A36] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display font-bold text-lg text-white">
+                  Perfil Biomecánico de Saltos (CMJ, Brazos y Un Pie)
+                </h2>
+                <p className="text-xs text-[#9299A5]">
+                  Compará tu potencia pura de piernas (CMJ), tu coordinación con impulso de brazos (Abalakov) y el equilibrio entre pierna izquierda y derecha.
+                </p>
+              </div>
+              {singleLegAsymmetryPct !== null && (
+                <span
+                  className={`px-3 py-1 rounded-xl text-xs font-bold border self-start sm:self-auto ${
+                    singleLegAsymmetryPct < 10
+                      ? 'bg-[#B7F56A]/10 text-[#B7F56A] border-[#B7F56A]/30'
+                      : singleLegAsymmetryPct < 15
+                      ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                      : 'bg-red-500/10 text-red-400 border-red-500/30'
+                  }`}
+                >
+                  Asimetría 1 Pie: {singleLegAsymmetryPct}%{' '}
+                  {singleLegAsymmetryPct < 10 ? '(Equilibrado)' : '(Monitorear)'}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* CMJ sin brazos */}
+              <div className="p-4 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex flex-col justify-between space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF6B2C]">
+                    CMJ (Sin Brazos)
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="font-mono-num font-black text-2xl text-white">
+                      {latestCMJ ? latestCMJ.result : '—'}
+                    </span>
+                    {latestCMJ && <span className="text-xs text-[#9299A5]">{latestCMJ.unit}</span>}
+                  </div>
+                  <span className="text-[10px] text-[#6D7787] block mt-0.5">
+                    {latestCMJ ? `Último: ${latestCMJ.date}` : 'Manos en cintura'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openMeasurementWithPreset('vertical_jump')}
+                  className="text-[11px] font-bold text-[#FF6B2C] hover:underline text-left"
+                >
+                  + Registrar CMJ
+                </button>
+              </div>
+
+              {/* Salto con brazos (Abalakov) */}
+              <div className="p-4 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex flex-col justify-between space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#B7F56A]">
+                    Con Brazos (Abalakov)
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="font-mono-num font-black text-2xl text-white">
+                      {latestArmsJump ? latestArmsJump.result : '—'}
+                    </span>
+                    {latestArmsJump && <span className="text-xs text-[#9299A5]">{latestArmsJump.unit}</span>}
+                  </div>
+                  <span className="text-[10px] text-[#6D7787] block mt-0.5">
+                    {armSwingGainCm !== null
+                      ? `Aporte brazos: ${armSwingGainCm >= 0 ? '+' : ''}${armSwingGainCm} cm (${armSwingGainPct}%)`
+                      : latestArmsJump
+                      ? `Último: ${latestArmsJump.date}`
+                      : 'Sin medición con brazos'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openMeasurementWithPreset('vertical_jump_arms')}
+                  className="text-[11px] font-bold text-[#B7F56A] hover:underline text-left"
+                >
+                  + Registrar con brazos
+                </button>
+              </div>
+
+              {/* Salto a un pie izquierdo */}
+              <div className="p-4 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex flex-col justify-between space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                    1 Pie — Izquierda
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="font-mono-num font-black text-2xl text-white">
+                      {latestSingleLeft ? latestSingleLeft.result : '—'}
+                    </span>
+                    {latestSingleLeft && <span className="text-xs text-[#9299A5]">{latestSingleLeft.unit}</span>}
+                  </div>
+                  <span className="text-[10px] text-[#6D7787] block mt-0.5">
+                    {latestSingleLeft ? `Último: ${latestSingleLeft.date}` : 'Despegue unipodal izq.'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openMeasurementWithPreset('single_leg_jump_left')}
+                  className="text-[11px] font-bold text-blue-400 hover:underline text-left"
+                >
+                  + Registrar pie izq.
+                </button>
+              </div>
+
+              {/* Salto a un pie derecho */}
+              <div className="p-4 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex flex-col justify-between space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
+                    1 Pie — Derecha
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="font-mono-num font-black text-2xl text-white">
+                      {latestSingleRight ? latestSingleRight.result : '—'}
+                    </span>
+                    {latestSingleRight && <span className="text-xs text-[#9299A5]">{latestSingleRight.unit}</span>}
+                  </div>
+                  <span className="text-[10px] text-[#6D7787] block mt-0.5">
+                    {latestSingleRight ? `Último: ${latestSingleRight.date}` : 'Despegue unipodal der.'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openMeasurementWithPreset('single_leg_jump_right')}
+                  className="text-[11px] font-bold text-purple-400 hover:underline text-left"
+                >
+                  + Registrar pie der.
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Vertical Jump History Card */}
+            {/* All Jump Measurements Card */}
             <div className="p-5 sm:p-6 rounded-3xl bg-[#15191F] border border-[#222A36] space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-display font-bold text-lg text-white">
-                    Salto Vertical (CMJ)
+                    Historial de Saltos y Potencia
                   </h3>
-                  <span className="text-xs text-[#9299A5]">Evolución cronológica</span>
+                  <span className="text-xs text-[#9299A5]">
+                    CMJ, Con Brazos, Un Pie, Carrera y Horizontal
+                  </span>
                 </div>
                 <span className="text-xs font-mono font-bold text-[#FF6B2C] bg-[#FF6B2C]/10 px-2.5 py-1 rounded-xl border border-[#FF6B2C]/20">
-                  {jumpMeasurements[jumpMeasurements.length - 1]?.result || 73} cm récord
+                  {allJumpMeasurements.length} tests
                 </span>
               </div>
 
               <div className="space-y-2">
-                {jumpMeasurements.map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-3 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-white">{m.result} cm</span>
-                      <span className="text-[#6D7787] block text-[10px]">
-                        {m.date} • {m.method}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => onDeleteMeasurement(m.id)}
-                      className="text-[#6D7787] hover:text-red-400 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                {allJumpMeasurements.length > 0 ? (
+                  allJumpMeasurements.map((m) => {
+                    const badge = getJumpTypeBadge(m.testType);
+                    return (
+                      <div
+                        key={m.id}
+                        className="p-3 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-white text-sm">
+                              {m.result} {m.unit}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                            {m.isPersonalRecord && (
+                              <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                PR
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[#6D7787] block text-[10px]">
+                            {m.date} • {m.method}
+                          </span>
+                          {m.notes && (
+                            <span className="text-[#9299A5] block text-[10px] italic">{m.notes}</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => onDeleteMeasurement(m.id)}
+                          className="text-[#6D7787] hover:text-red-400 p-1 shrink-0"
+                          title="Eliminar medición"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-[#6D7787] py-4 text-center">
+                    Todavía no registraste tests de salto.
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Sprints History Card */}
+            {/* Sprints, Agility & Strength Card */}
             <div className="p-5 sm:p-6 rounded-3xl bg-[#15191F] border border-[#222A36] space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-display font-bold text-lg text-white">
-                    Velocidad y Aceleración
+                    Velocidad, Agilidad y Fuerza
                   </h3>
-                  <span className="text-xs text-[#9299A5]">Sprints de 5 m y 10 m</span>
+                  <span className="text-xs text-[#9299A5]">
+                    Sprints 5m/10m, T-Test, Trap Bar, Banca y Dominadas
+                  </span>
                 </div>
+                <span className="text-xs font-mono font-bold text-[#3B82F6] bg-[#3B82F6]/10 px-2.5 py-1 rounded-xl border border-[#3B82F6]/20">
+                  {otherMeasurements.length} tests
+                </span>
               </div>
 
               <div className="space-y-2">
-                {sprintMeasurements.map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-3 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-white">
-                        {m.testName}: {m.result} {m.unit}
-                      </span>
-                      <span className="text-[#6D7787] block text-[10px]">
-                        {m.date} • {m.method}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => onDeleteMeasurement(m.id)}
-                      className="text-[#6D7787] hover:text-red-400 p-1"
+                {otherMeasurements.length > 0 ? (
+                  otherMeasurements.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-3 rounded-2xl bg-[#0B0D10] border border-[#1E2530] flex items-center justify-between gap-3 text-xs"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">
+                            {m.testName}: {m.result} {m.unit}
+                          </span>
+                          {m.isPersonalRecord && (
+                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              PR
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[#6D7787] block text-[10px]">
+                          {m.date} • {m.method}
+                        </span>
+                        {m.notes && (
+                          <span className="text-[#9299A5] block text-[10px] italic">{m.notes}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => onDeleteMeasurement(m.id)}
+                        className="text-[#6D7787] hover:text-red-400 p-1 shrink-0"
+                        title="Eliminar medición"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-[#6D7787] py-4 text-center">
+                    Todavía no registraste mediciones de velocidad o fuerza.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1062,22 +1372,48 @@ export const StatsView: React.FC<Props> = ({
       {/* Modal: Add New Measurement */}
       {showAddMeasurementModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-[#15191F] border border-[#222A36] p-6 text-white space-y-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#15191F] border border-[#222A36] p-6 text-white space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="font-display font-bold text-lg">Nueva Medición Física</h3>
             <form onSubmit={handleCreateMeasurement} className="space-y-3 text-xs">
               <div>
                 <label className="block text-[#9299A5] mb-1">Tipo de Test</label>
                 <select
                   value={testType}
-                  onChange={(e) => handleTestTypeChange(e.target.value as any)}
+                  onChange={(e) => handleTestTypeChange(e.target.value as MeasurementType)}
                   className="w-full bg-[#0B0D10] border border-[#252E3C] rounded-xl px-3 py-2 text-white"
                 >
-                  <option value="vertical_jump">Salto Vertical (CMJ)</option>
-                  <option value="sprint_5m">Sprint 5 metros (aceleración)</option>
-                  <option value="sprint_10m">Sprint 10 metros</option>
-                  <option value="trap_bar_deadlift">Trap Bar Deadlift (Fuerza)</option>
-                  <option value="custom">Test Personalizado</option>
+                  <optgroup label="Saltos y Potencia">
+                    <option value="vertical_jump">Salto Vertical CMJ (sin brazos / manos en cintura)</option>
+                    <option value="vertical_jump_arms">Salto Vertical con Brazos (Abalakov)</option>
+                    <option value="single_leg_jump_left">Salto a Un Pie — Pierna Izquierda</option>
+                    <option value="single_leg_jump_right">Salto a Un Pie — Pierna Derecha</option>
+                    <option value="approach_jump">Salto en Carrera (Approach Jump)</option>
+                    <option value="broad_jump">Salto Horizontal a Pies Juntos (Broad Jump)</option>
+                  </optgroup>
+                  <optgroup label="Velocidad y Agilidad">
+                    <option value="sprint_5m">Sprint 5 metros (primer paso)</option>
+                    <option value="sprint_10m">Sprint 10 metros (aceleración)</option>
+                    <option value="agility_t_test">Test de Agilidad (T-Test)</option>
+                  </optgroup>
+                  <optgroup label="Fuerza">
+                    <option value="trap_bar_deadlift">Trap Bar Deadlift (Fuerza)</option>
+                    <option value="bench_press">Press Banca (Fuerza)</option>
+                    <option value="pull_ups">Dominadas Máximas</option>
+                  </optgroup>
+                  <optgroup label="Otro">
+                    <option value="custom">Test Personalizado</option>
+                  </optgroup>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-[#9299A5] mb-1">Nombre del Test</label>
+                <input
+                  type="text"
+                  value={testName}
+                  onChange={(e) => setTestName(e.target.value)}
+                  className="w-full bg-[#0B0D10] border border-[#252E3C] rounded-xl px-3 py-2 text-white"
+                />
               </div>
 
               <div>
@@ -1116,6 +1452,17 @@ export const StatsView: React.FC<Props> = ({
                   value={measDate}
                   onChange={(e) => setMeasDate(e.target.value)}
                   className="w-full bg-[#0B0D10] border border-[#252E3C] rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#9299A5] mb-1">Notas / Sensaciones (opcional)</label>
+                <input
+                  type="text"
+                  value={measNotes}
+                  onChange={(e) => setMeasNotes(e.target.value)}
+                  placeholder="Ej. Descansado, post entrada en calor, zapatillas habituales..."
+                  className="w-full bg-[#0B0D10] border border-[#252E3C] rounded-xl px-3 py-2 text-white placeholder-[#6D7787]"
                 />
               </div>
 

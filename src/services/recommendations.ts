@@ -74,7 +74,14 @@ export function generateAthleticRecommendations(
   }
 
   // 4. Physical Testing Freshness: Vertical jump & Sprints check
-  const jumpTests = measurements.filter((m) => m.testType === 'vertical_jump');
+  const jumpTypes = [
+    'vertical_jump',
+    'vertical_jump_arms',
+    'single_leg_jump_left',
+    'single_leg_jump_right',
+    'approach_jump',
+  ];
+  const jumpTests = measurements.filter((m) => jumpTypes.includes(m.testType));
   const sprintTests = measurements.filter((m) => m.testType.startsWith('sprint'));
 
   const latestJump = jumpTests.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];

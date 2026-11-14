@@ -125,34 +125,34 @@ async function startServer() {
 
     const lastUserMessage = messages[messages.length - 1]?.content || '';
 
-    // Build sports system prompt with verified ground truth
-    const sportsSystemInstruction = `Sos "Basketball Performance Analyst", un asistente de inteligencia artificial y analista de rendimiento deportivo integrado exclusivamente en COURTSIDE para Santino (16 años, jugador formativo en Instituto Atlético Central Córdoba - IACC).
+    // Build sports system prompt: open, versatile basketball performance coach & analyst grounded in real records
+    const sportsSystemInstruction = `Sos "Basketball Performance Analyst", el analista de rendimiento deportivo y asesor integral de básquetbol de COURTSIDE para Santino (16 años, jugador formativo de Instituto Atlético Central Córdoba - IACC, categorías U17 y U21).
 
-REGLAS DE ORO OBLIGATORIAS:
-1. Actuá como un analista de datos deportivos riguroso, empático y constructivo. NO sos el director técnico ni el preparador físico de IACC, ni un profesional médico: NUNCA contradigas las indicaciones de los entrenadores del club.
-2. Basate EXCLUSIVAMENTE en los registros reales provistos en el CONTEXTO DEPORTIVO VERIFICADO. NUNCA inventes números, partidos o estadísticas que no figuren en los datos.
-3. CITÁ SIEMPRE FECHAS, SESIONES, MEDICIONES O PERÍODOS concretos que respaldan tus conclusiones (por ejemplo: "En tu test del 24 de Octubre registraste 73 cm...", "En las últimas 4 semanas sumaste 1.420 minutos...").
-4. Diferenciá claramente entre:
-   - Observaciones comprobadas (datos reales medidos).
-   - Hipótesis o interpretaciones (posibles explicaciones tácticas o fisiológicas).
-   - Estimaciones de tendencia (proyecciones orientativas, aclarando el margen de incertidumbre).
-5. DIFERENCIÁ UNA DEBILIDAD REAL DE UNA FALTA DE REGISTROS: Si Santino no anotó lanzamientos o entradas con mano izquierda, NO afirmes que es malo con esa mano; señalá que no hay registros suficientes para evaluarla.
-6. Si una pregunta no cuenta con datos suficientes para responderse, declaralo de forma explícita y explicá qué medición o registro permitiría responderla.
-7. Mantené un tono profesional, alentador y albirrojo (identidad de Instituto). Cuando Santino exprese frustración o enojo tras una mala práctica, recordale que el progreso no es lineal y que los datos muestran su evolución general.
+TU PROPÓSITO (MUY IMPORTANTE — NO TE CIERRES):
+- NO te limites a repetir estadísticas ni a responder solo preguntas cerradas sobre sus registros.
+- Respondé de forma AMPLIA, PRÁCTICA, CIENTÍFICA Y ACCIONABLE a CUALQUIER pregunta que te haga Santino: cómo mejorar su salto vertical (CMJ sin brazos, salto con brazos/Abalakov, salto a un pie izquierdo y derecho, salto en carrera), cómo ganar velocidad y primer paso, técnica de tiro, mano izquierda, manejo de balón, defensa, fuerza en gimnasio, recuperación, sueño, alimentación deportiva, manejo de la frustración/enojo o preparación de partidos.
+- Usá sus datos reales del CONTEXTO DEPORTIVO VERIFICADO como punto de partida personalizado para enriquecer tu respuesta (y si faltan datos de algún test como salto a un pie o con brazos, explicá igualmente lo que preguntó y sugerile registrar esa medición para hacer seguimiento).
+
+REGLAS DE RIGOR Y VERACIDAD:
+1. NUNCA inventes fechas, tests, puntajes, porcentajes o entrenamientos personales que no figuren en el CONTEXTO DEPORTIVO VERIFICADO. Si citás una marca de Santino, que sea exactamente la que figura en el contexto.
+2. NUNCA contradigas ni reemplaces las indicaciones del director técnico o preparador físico de IACC ni des diagnósticos médicos: cuando sugieras ejercicios pliométricos o cargas de gimnasio, recomendá coordinarlo con el PF del club.
+3. Diferenciá claramente: (a) sus datos reales medidos, (b) el conocimiento técnico/biomecánico aplicado (ejercicios, técnica de brazos, trabajo unilateral, descansos) y (c) falta de registros cuando un test aún no fue cargado (no confundas falta de datos con debilidad).
+4. En saltos, diferenciá bien los protocolos: CMJ sin brazos (potencia pura de piernas), Salto con Brazos / Abalakov (coordinación e impulso de brazos, normalmente +10-15% sobre CMJ) y Saltos a Un Pie Izquierdo vs Derecho (despegue en carrera y control de asimetría bilateral <10%).
+5. Mantené un tono cercano, claro, argentino, motivador y albirrojo (identidad de Instituto). Si expresa enojo o frustración, ayudalo a resetear mentalmente recordando que el progreso no es lineal.
 
 CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
 - Atleta: ${context?.profile?.name || 'Santino'} (${context?.profile?.club || 'IACC'}, categoría ${context?.profile?.category || 'U17'})
 - Altura: ${context?.profile?.heightCm || 187} cm | Peso: ${context?.profile?.weightKg || 77} kg | Envergadura: ${context?.profile?.wingspanCm || 191} cm | Mano hábil: ${context?.profile?.dominantHand || 'Derecha'}
-- Total de actividades registradas: ${context?.activitiesCount || 0}
-- Total de mediciones físicas: ${context?.measurementsCount || 0}
-- Total de objetivos activos: ${context?.goalsCount || 0}
+- Totales registrados: ${context?.activitiesCount || 0} actividades, ${context?.measurementsCount || 0} mediciones físicas, ${context?.goalsCount || 0} objetivos
+- Perfil de Saltos (CMJ / Con Brazos / 1 Pie): ${JSON.stringify(context?.jumpBreakdown || {})}
+- Resumen de Tiro en Patio: ${JSON.stringify(context?.shootingSummary || {})}
 - Resumen Carga Semanal Real: ${JSON.stringify(context?.weeklyWorkloadSummary || {})}
 - Debilidades y Desequilibrios Detectados: ${JSON.stringify(context?.weaknesses || [])}
-- Estimaciones de Tendencia (Salto/Velocidad): ${JSON.stringify(context?.trendEstimations || [])}
+- Estimaciones de Tendencia: ${JSON.stringify(context?.trendEstimations || [])}
 - Comparación de Períodos: ${JSON.stringify(context?.periodComparisonSummary || {})}
 - Objetivos con Evidencia: ${JSON.stringify(context?.goalsEvidenceSummary || [])}
 - Últimas 8 sesiones completadas: ${JSON.stringify(context?.recentActivities || [])}
-- Récords y Mediciones Reales: ${JSON.stringify(context?.measurements || [])}
+- Todas las Mediciones Físicas Reales: ${JSON.stringify(context?.measurements || [])}
 `;
 
     // Attempt calling Gemini API via @google/genai
@@ -170,17 +170,14 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
         });
 
         // Convert messages to valid contents array
-        // 1. Map to user / model roles
         const rawTurns = messages.map((m: any) => ({
           role: (m.role === 'assistant' || m.role === 'model') ? ('model' as const) : ('user' as const),
           text: typeof m.content === 'string' ? m.content.trim() : JSON.stringify(m.content),
         })).filter(t => t.text.length > 0);
 
-        // 2. Ensure contents starts with a 'user' message and alternates roles
         const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
         for (const turn of rawTurns) {
           if (contents.length === 0 && turn.role !== 'user') {
-            // Skip leading assistant greeting so the conversation starts with a user turn
             continue;
           }
           const prev = contents[contents.length - 1];
@@ -198,8 +195,8 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
           });
         }
 
-        // Candidate models list: try gemini-3.1-flash-lite first (active quota), fallback to gemini-3.8-flash
-        const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+        // Candidate models list
+        const candidateModels = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.8-flash'];
         let replyText: string | null = null;
         let successfulModel = '';
 
@@ -236,103 +233,185 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
       }
     }
 
-    // Deterministic Sports Analyst Fallback (when GEMINI_API_KEY is not set or network fails)
-    // Computes ground-truth answers directly from the sports analytics payload
-    const qLower = lastUserMessage.toLowerCase();
+    // Open & Multi-Domain Sports Analyst Fallback (when GEMINI_API_KEY is not set or quota/network fails)
+    const q = String(lastUserMessage || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    const hasAny = (terms: string[]) => terms.some((t) => q.includes(t));
+
     let reply = '';
     const weaknesses = context?.weaknesses || [];
     const workload = context?.weeklyWorkloadSummary || {};
     const trends = context?.trendEstimations || [];
     const goals = context?.goalsEvidenceSummary || [];
-    const recentActs = context?.recentActivities || [];
+    const measurements = context?.measurements || [];
+    const jb = context?.jumpBreakdown || {};
+    const shooting = context?.shootingSummary || {};
+    const athleteName = context?.profile?.name || 'Santino';
 
-    if (qLower.includes('debilidad') || qLower.includes('desequilibrio')) {
-      if (weaknesses.length > 0) {
-        reply = `Analizando tus ${context?.activitiesCount || 0} registros deportivos cruzados, identifiqué las siguientes observaciones prioritarias:\n\n` +
-          weaknesses.map((w: any, idx: number) =>
-            `**${idx + 1}. ${w.title}** (${w.kind.replace(/_/g, ' ').toUpperCase()})\n` +
-            `• **Datos que lo respaldan:** ${w.backingData}\n` +
-            `• **Por qué es relevante:** ${w.whyRelevant}\n` +
-            `• **Acción recomendada:** ${w.followUpAction}`
-          ).join('\n\n') +
-          `\n\n*Nota de rigor:* Ninguna de estas observaciones reemplaza la planificación de los entrenadores de Instituto.`;
-      } else {
-        reply = `No detectamos desequilibrios marcados en tus registros recientes. Mantenés una distribución consistente entre prácticas de equipo, gimnasio y descanso.`;
+    if (
+      hasAny([
+        'salto',
+        'saltar',
+        'cmj',
+        'abalakov',
+        'un pie',
+        'una pierna',
+        'unipodal',
+        'volcar',
+        'despegue',
+        'pliometria',
+        'asimetria',
+      ])
+    ) {
+      const parts: string[] = [];
+      if (jb.cmjLatest) parts.push(`• **CMJ (sin brazos):** ${jb.cmjLatest.result} cm (${jb.cmjLatest.date})`);
+      if (jb.armsLatest) {
+        const gainStr =
+          jb.armGainCm !== null && jb.armGainCm !== undefined
+            ? ` — aporte de brazos: ${jb.armGainCm >= 0 ? '+' : ''}${jb.armGainCm} cm (${jb.armGainPct}%)`
+            : '';
+        parts.push(`• **Salto con Brazos (Abalakov):** ${jb.armsLatest.result} cm (${jb.armsLatest.date})${gainStr}`);
       }
-    } else if (qLower.includes('mano izquierda') || qLower.includes('zurda')) {
+      if (jb.leftLegLatest || jb.rightLegLatest) {
+        const asym =
+          jb.singleLegAsymmetryPct !== null && jb.singleLegAsymmetryPct !== undefined
+            ? ` — asimetría bilateral: **${jb.singleLegAsymmetryPct}%**`
+            : '';
+        parts.push(
+          `• **Saltos a Un Pie:** Izquierda ${jb.leftLegLatest ? jb.leftLegLatest.result + ' cm' : 'sin registro'} | Derecha ${jb.rightLegLatest ? jb.rightLegLatest.result + ' cm' : 'sin registro'}${asym}`
+        );
+      }
+      if (jb.approachLatest) parts.push(`• **Salto en Carrera:** ${jb.approachLatest.result} cm (${jb.approachLatest.date})`);
+
+      const dataHeader =
+        parts.length > 0
+          ? `**Tus registros actuales de salto:**\n${parts.join('\n')}`
+          : `**Tus registros:** Aún podés cargar tus tests de CMJ, Salto con Brazos y Saltos a Un Pie en Estadísticas para ir midiendo cada avance.`;
+
+      reply =
+        `**Guía Práctica y Análisis de Salto Vertical (${athleteName}):**\n\n` +
+        `${dataHeader}\n\n` +
+        `**Cómo mejorar el salto de forma real y segura:**\n` +
+        `1. **Fuerza explosiva en gimnasio (IACC):** Trap Bar Deadlift, sentadilla y búlgaras con **subida lo más rápida posible** (3-4 series de 3-5 repeticiones).\n` +
+        `2. **Pliometría de calidad (fresco, nunca fatigado):** *Pogo jumps* (3x10 rebotes cortos de tobillo), saltos al cajón o al aro a máxima intensidad con 90 seg de pausa entre series.\n` +
+        `3. **Uso de brazos (Abalakov):** Llevá los brazos atrás en el descenso y lanzalos explosivamente arriba sincronizados con la extensión de cadera y tobillos (suele sumar +10% a +15% respecto al CMJ sin brazos).\n` +
+        `4. **Despegue a un pie y simetría:** Trabajá saltos unipodales y subidas rápidas al cajón empezando por la pierna más débil para mantener la asimetría por debajo del 10%.\n` +
+        `5. **Descanso:** Dormí 8+ horas y coordiná cualquier bloque pliométrico extra con el PF de Instituto.`;
+    } else if (hasAny(['velocidad', 'sprint', 'rapido', 'primer paso', 'agilidad', 'aceleracion'])) {
+      reply =
+        `**Cómo mejorar tu Velocidad y Primer Paso:**\n\n` +
+        `• **Inclinación en salida:** En los primeros 3 pasos, bajá el centro de gravedad e incliná el torso hacia adelante (~45°) empujando el suelo hacia atrás.\n` +
+        `• **Potencia horizontal y frenado:** Broad Jumps (salto horizontal), estocadas explosivas y frenadas a un pie para cambiar de dirección más rápido.\n` +
+        `• **Sprints cortos:** 4-6 pasadas de 5m a 10m desde postura de triple amenaza con recuperación completa (60-90s).`;
+    } else if (hasAny(['tiro', 'triple', 'lanzamiento', 'efectividad', 'porcentaje', 'libre', 'mecanica'])) {
+      const accMsg =
+        shooting?.accuracyPct !== null && shooting?.accuracyPct !== undefined
+          ? `En tus registros de patio llevás **${shooting.makes}/${shooting.attempts} (${shooting.accuracyPct}%)** en ${shooting.sessions} sesiones.`
+          : `Podés anotar aciertos e intentos por zona en Técnica Individual para medir tu porcentaje real.`;
+      reply =
+        `**Mejora de Tiro y Efectividad (${athleteName}):**\n\n` +
+        `${accMsg}\n\n` +
+        `• **Pies armados antes de recibir:** Cargá cadera y alineá los pies *antes* de que llegue el pase.\n` +
+        `• **Trayectoria limpia:** Codo alineado al aro, extensión fluida hacia arriba y muñeca relajada manteniendo el gesto hasta que toque el aro.\n` +
+        `• **Volumen inteligente:** Separar series de tiros libres, triples estáticos y tras drible te permite detectar en qué situación bajás tu efectividad.`;
+    } else if (hasAny(['mano izquierda', 'zurda', 'no habil', 'drible', 'manejo', 'bandeja', 'finaliz'])) {
       const leftHandObs = weaknesses.find((w: any) => w.id?.includes('left-hand'));
-      if (leftHandObs) {
-        reply = `**Evaluación de Mano Izquierda:**\n\n` +
-          `Actualmente **no hay registros suficientes de finalizaciones o entradas con mano izquierda** en tus últimos 60 días (${leftHandObs.backingData}).\n\n` +
-          `*Aclaración importante:* Esto no significa que tengas un mal desempeño con la mano izquierda, sino que no existe evidencia cuantificada en la app para medir tu efectividad real.\n\n` +
-          `**Sugerencia práctica:** En tu próxima práctica individual en el patio, registrá una serie de 20 tiros o bandejas con mano no hábil para crear una marca de referencia.`;
+      reply =
+        `**Trabajo de Mano Izquierda, Drible y Finalizaciones:**\n\n` +
+        (leftHandObs
+          ? `• **Dato en tu historial:** ${leftHandObs.backingData}. *Falta registro, no significa que sea una mala mano.*\n\n`
+          : '') +
+        `• **Drills recomendados:** Mikan y Reverse Mikan solo con izquierda (2x20), bandejas extendidas con contacto protegido por el cuerpo y salidas agresivas de 1-2 piques largos por el perfil izquierdo.`;
+    } else if (hasAny(['fuerza', 'gym', 'gimnasio', 'pesas', 'trap bar', 'sentadilla', 'pierna', 'core'])) {
+      reply =
+        `**Fuerza Funcional en Gimnasio (IACC):**\n\n` +
+        `• **Tren inferior:** Trap Bar, sentadilla y trabajo unilateral (búlgaras/step-ups) con intención explosiva en la fase concéntrica.\n` +
+        `• **Core y estabilidad:** Planchas con desplazamiento y ejercicios anti-rotación para absorber contacto contra U17/U21.\n` +
+        `• Respetá siempre las cargas y progresiones indicadas por el preparador físico de Instituto.`;
+    } else if (hasAny(['defensa', 'defender', 'rebote', 'robo', 'tapon', 'lectura', 'tactica'])) {
+      reply =
+        `**Defensa, Rebote y Lectura de Juego:**\n\n` +
+        `• **Postura y desplazamientos:** Cadera baja, pasos cortos sin cruzar los pies y manos activas en línea de pase.\n` +
+        `• **Box Out:** Contacto inmediato con el atacante apenas sale el tiro antes de ir a buscar el rebote.\n` +
+        `• **Comunicación:** Hablar en ayudas y bloqueos te mantiene enchufado en todo momento.`;
+    } else if (hasAny(['sueno', 'dormir', 'descanso', 'recuper', 'comer', 'alimentacion', 'nutricion', 'hidrat', 'agua'])) {
+      reply =
+        `**Recuperación, Sueño y Nutrición Deportiva:**\n\n` +
+        `• **Sueño:** Apuntá a 8-9 hs diarias; dormir poco reduce la potencia de salto y precisión de tiro.\n` +
+        `• **Pre/Post entrenamiento:** Carbohidratos antes (banana, tostadas, avena) para energía + proteína y carbohidratos después para recuperar músculo.\n` +
+        `• **Hidratación:** Tomá agua constante antes, durante y después de entrenar en Instituto.`;
+    } else if (hasAny(['motiv', 'enoj', 'bajon', 'mal', 'frustr', 'nervio', 'confianza', 'cabeza', 'mental'])) {
+      reply =
+        `**Fortaleza Mental y Manejo de la Frustración:**\n\n` +
+        `1. **Reset 4x4:** Respirá 4s adentro, sostené 4s, soltá en 4s para bajar pulsaciones cuando algo sale mal.\n` +
+        `2. **Siguiente jugada:** El error dura 3 segundos; pasá rápido a sprint defensivo, comunicación o un pase simple.\n` +
+        `3. **Perspectiva:** Ya tenés ${context?.activitiesCount || 0} sesiones acumuladas. Un mal día no borra tu proceso.`;
+    } else if (hasAny(['debilidad', 'desequilibrio'])) {
+      if (weaknesses.length > 0) {
+        reply =
+          `Analizando tus ${context?.activitiesCount || 0} registros deportivos cruzados, identifiqué las siguientes observaciones:\n\n` +
+          weaknesses
+            .map(
+              (w: any, idx: number) =>
+                `**${idx + 1}. ${w.title}** (${String(w.kind || '').replace(/_/g, ' ').toUpperCase()})\n` +
+                `• **Datos que lo respaldan:** ${w.backingData}\n` +
+                `• **Por qué es relevante:** ${w.whyRelevant}\n` +
+                `• **Acción recomendada:** ${w.followUpAction}`
+            )
+            .join('\n\n') +
+          `\n\n*Nota:* Ninguna observación reemplaza las indicaciones de los entrenadores de Instituto.`;
       } else {
-        reply = `Tenés sesiones con mención de trabajo técnico registrada. Para evaluar tu evolución con mano izquierda con precisión estadística, te sugiero anotar los aciertos e intentos específicos de cada perfil en el módulo de Técnica Individual.`;
+        reply = `No se detectan desequilibrios marcados en tus registros recientes. Mantenés buena consistencia entre entrenamientos, gimnasio y descanso.`;
       }
-    } else if (qLower.includes('carga') || qLower.includes('semana') || qLower.includes('fatiga')) {
-      reply = `**Análisis de Carga Semanal Real (Método Foster sRPE):**\n\n` +
-        `• **Volumen total:** ${workload.totalMinutes || 0} minutos en ${workload.totalSessions || 0} sesiones completadas.\n` +
-        `• **Carga interna acumulada:** ${workload.totalLoadAU || 0} AU (Unidades Arbitrarias).\n` +
-        `• **Esfuerzo percibido promedio (RPE):** ${workload.averageRpe || 0}/10.\n` +
-        `• **Distribución Técnico/Físico:** ${workload.technicalMinutes || 0} min técnicos vs ${workload.physicalMinutes || 0} min físicos (${workload.technicalVsPhysicalRatio || 'Equilibrado'}).\n` +
-        `• **Relación Sueño / Fatiga:** ${workload.sleepLoadCorrelationNote || 'Sin datos suficientes de sueño en la semana'}.\n\n` +
-        (workload.informativeAlerts && workload.informativeAlerts.length > 0
-          ? `**Alertas informativas observadas:**\n` + workload.informativeAlerts.map((a: any) => `• *${a.title}:* ${a.description}`).join('\n')
-          : `Carga distribuida dentro de rangos normales de asimilación.`);
-    } else if (qLower.includes('salto') || qLower.includes('vertical')) {
-      const jumpTrend = trends.find((t: any) => t.metricType === 'vertical_jump');
-      if (jumpTrend) {
-        reply = `**Estado de tu Salto Vertical (CMJ):**\n\n` +
-          `• **Último valor medido:** ${jumpTrend.latestValue} ${jumpTrend.unit} (${jumpTrend.latestDate}).\n` +
-          `• **Valor inicial:** ${jumpTrend.initialValue} ${jumpTrend.unit} (${jumpTrend.initialDate}).\n` +
-          `• **Tendencia observada:** ${jumpTrend.observedTrend.toUpperCase()} (${jumpTrend.trendRatePerWeek > 0 ? '+' : ''}${jumpTrend.trendRatePerWeek} cm por semana).\n` +
-          `• **Muestras disponibles:** ${jumpTrend.measurementsCount} mediciones registradas.\n` +
-          (jumpTrend.targetValue ? `• **Distancia al objetivo (${jumpTrend.targetValue} cm):** Faltan ${jumpTrend.currentDistanceToTarget} cm.\n` : '') +
-          (jumpTrend.confidenceWarning ? `• *Advertencia de fiabilidad:* ${jumpTrend.confidenceWarning}\n` : '') +
-          `\nPara evaluar tu salto de forma confiable, asegurate de testear siempre con el mismo protocolo (Test Vertec / Tablero) y tras un día de bajo cansancio.`;
-      } else {
-        reply = `No hay mediciones de salto vertical registradas en el historial. Podés agregar tu primer test en la pestaña de Estadísticas para que comencemos a calcular tu curva de potencia.`;
-      }
-    } else if (qLower.includes('tiro') || qLower.includes('triple') || qLower.includes('lanzamiento') || qLower.includes('efectividad')) {
-      reply = `**Análisis de Efectividad y Mecánica de Tiro:**\n\n` +
-        `En tus registros recientes contás con sesiones de tiro y técnica individual registradas.\n` +
-        `• **Recomendación analítica:** Para que la tendencia de tiro sea estadísticamente significativa, anotá siempre intentos totales vs convertidos separados por zona (tiros libres, triples de frente, esquinas y tras drible).\n` +
-        `• **Consistencia:** Mantener una rutina fija de 100 tiros post-entrenamiento en el patio suma volumen sin sobrecargar las piernas si el RPE se mantiene entre 4 y 6.`;
-    } else if (qLower.includes('u17') || qLower.includes('u21') || qLower.includes('instituto') || qLower.includes('club')) {
-      reply = `**Entrenamientos IACC (U17 vs U21):**\n\n` +
-        `Tu perfil está configurado para registrar sesiones diferenciadas entre U17 (tu categoría base) y citaciones/entrenamientos con U21 en el Sandrín.\n` +
-        `• **Gestión de Carga:** El ritmo y contacto en U21 suele demandar un RPE mayor (+1.5 a +2.0 puntos). Anotar rigurosamente el RPE y el sueño pospartido nos permite alertarte si se produce un pico agudo de carga interna.`;
-    } else if (qLower.includes('objetivo') || qLower.includes('meta')) {
+    } else if (hasAny(['carga', 'semana', 'fatiga', 'srpe'])) {
+      reply =
+        `**Análisis de Carga Semanal Real (Método Foster sRPE):**\n\n` +
+        `• **Volumen total:** ${workload.totalMinutes || 0} minutos en ${workload.totalSessions || 0} sesiones.\n` +
+        `• **Carga interna:** ${workload.totalLoadAU || 0} AU | **RPE promedio:** ${workload.averageRpe || 0}/10.\n` +
+        `• **Distribución:** ${workload.technicalMinutes || 0} min técnicos vs ${workload.physicalMinutes || 0} min físicos.\n` +
+        `• **Sueño / Fatiga:** ${workload.sleepLoadCorrelationNote || 'Sin datos completos de sueño en la semana'}.`;
+    } else if (hasAny(['u17', 'u21', 'instituto', 'club'])) {
+      reply =
+        `**Entrenamientos IACC (U17 vs U21):**\n\n` +
+        `• En U21 el contacto y la velocidad de juego suelen elevar el RPE (+1.5 a +2.0 puntos). Compensá la diferencia física con intensidad defensiva, lectura rápida y tiro abierto.\n` +
+        `• Diferenciar cada sesión como U17 o U21 en la app permite cuidar tu carga semanal.`;
+    } else if (hasAny(['objetivo', 'meta'])) {
       if (goals.length > 0) {
-        reply = `**Estado de Objetivos Vinculados con Evidencia:**\n\n` +
-          goals.map((g: any) =>
-            `• **${g.title}:** ${g.statusLabel} (${g.progressPercentage !== undefined ? g.progressPercentage + '% de avance' : 'En seguimiento'}).\n` +
-            `  *Último valor medido:* ${g.latestValue !== undefined ? g.latestValue + ' ' + (g.unit || '') : 'Sin medición'} | *Evidencia:* ${g.evidenceSummary}`
-          ).join('\n\n');
+        reply =
+          `**Estado de Objetivos Vinculados con Evidencia:**\n\n` +
+          goals
+            .map(
+              (g: any) =>
+                `• **${g.title}:** ${g.statusLabel} (${g.progressPercentage !== undefined ? g.progressPercentage + '% de avance' : 'En seguimiento'}).\n` +
+                `  *Último valor:* ${g.latestValue !== undefined ? g.latestValue + ' ' + (g.unit || '') : 'Sin medición'} | *Evidencia:* ${g.evidenceSummary}`
+            )
+            .join('\n\n');
       } else {
-        reply = `No tenés objetivos deportivos activos configurados en este momento. Podés crearlos desde el módulo de Objetivos.`;
+        reply = `No tenés objetivos deportivos activos configurados. Podés crearlos en el módulo de Objetivos.`;
       }
-    } else if (qLower.includes('compar') || qLower.includes('mes anterior') || qLower.includes('cuatro semanas')) {
+    } else if (hasAny(['compar', 'mes anterior', 'cuatro semanas'])) {
       const comp = context?.periodComparisonSummary;
-      if (comp) {
-        reply = `**Comparación entre Períodos Equivalentes (${comp.periodAName} vs ${comp.periodBName}):**\n\n` +
-          `1. **Cantidad de entrenamiento:** ${comp.minsA || 0} min (${comp.actsA || 0} sesiones) vs ${comp.minsB || 0} min (${comp.actsB || 0} sesiones).\n` +
-          `2. **Recuperación:** Sueño promedio de ${comp.sleepA || 'N/A'} hs vs ${comp.sleepB || 'N/A'} hs; RPE promedio de ${comp.rpeA || 'N/A'} vs ${comp.rpeB || 'N/A'}.\n` +
-          `3. **Rendimiento medido:** ${comp.performanceSummary || 'Tests estables entre ambos períodos'}.\n\n` +
-          (comp.disparityNote ? `*Nota metodológica:* ${comp.disparityNote}` : '');
+      if (comp && comp.periodAName) {
+        reply =
+          `**Comparación entre Períodos (${comp.periodAName} vs ${comp.periodBName}):**\n\n` +
+          `1. **Cantidad:** ${comp.minsA || 0} min (${comp.actsA || 0} sesiones) vs ${comp.minsB || 0} min (${comp.actsB || 0} sesiones).\n` +
+          `2. **Recuperación:** Sueño ${comp.sleepA || 'N/A'} hs vs ${comp.sleepB || 'N/A'} hs; RPE ${comp.rpeA || 'N/A'} vs ${comp.rpeB || 'N/A'}.\n` +
+          (comp.disparityNote ? `*Nota:* ${comp.disparityNote}` : '');
       } else {
-        reply = `Para realizar una comparación fidedigna entre períodos equivalentes, se requieren al menos 4 semanas completas de registros en cada ciclo. Podés consultar la comparativa detallada en la pestaña de Estadísticas.`;
+        reply = `Podés ver la comparativa completa entre períodos de 1, 2 o 4 semanas en Estadísticas -> Comparar Períodos.`;
       }
     } else {
-      reply = `Hola Santino. Analicé tus registros deportivos de Instituto, gimnasio, técnica y físico.\n\n` +
-        `Actualmente contás con **${context?.activitiesCount || 0} actividades completadas**, **${context?.measurementsCount || 0} mediciones físicas** y **${context?.goalsCount || 0} objetivos en seguimiento**.\n\n` +
-        `Podés consultarme preguntas específicas como:\n` +
-        `• *¿Cuál es mi principal debilidad según mis registros?*\n` +
-        `• *¿Estoy trabajando suficiente mi mano izquierda?*\n` +
-        `• *¿Cómo fue mi carga interna y fatiga esta semana?*\n` +
-        `• *¿Qué tendencia muestra mi salto vertical?*\n` +
-        `• *¿Qué objetivos tienen respaldo de mediciones reales?*\n` +
-        `• *Compará mis últimas cuatro semanas con las anteriores.*`;
+      const cmjStr = jb.cmjLatest ? `CMJ ${jb.cmjLatest.result} cm` : 'CMJ sin registrar';
+      const armsStr = jb.armsLatest ? `Con brazos ${jb.armsLatest.result} cm` : 'Con brazos sin registrar';
+      reply =
+        `Hola ${athleteName}. Analicé tu consulta *"${lastUserMessage}"* junto a tu estado actual en COURTSIDE:\n\n` +
+        `• **Esta semana:** ${workload.totalSessions || 0} sesiones (${workload.totalMinutes || 0} min | ${workload.totalLoadAU || 0} AU)\n` +
+        `• **Saltos:** ${cmjStr} | ${armsStr}\n` +
+        `• **Historial total:** ${context?.activitiesCount || 0} actividades, ${context?.measurementsCount || 0} mediciones y ${context?.goalsCount || 0} metas.\n\n` +
+        `Podés preguntarme libremente lo que necesites: cómo mejorar el salto (CMJ, con brazos o a un pie), ejercicios de primer paso, tiro, mano izquierda, recuperación, nutrición o preparación mental.`;
     }
 
     return res.json({
@@ -357,9 +436,56 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
         host: '0.0.0.0',
         port: PORT,
         hmr: false,
+        ws: false,
       },
       appType: 'spa',
     });
+
+    // When HMR is disabled in middlewareMode, Vite 8's @vite/client still attempts a
+    // WebSocket connection to port 24678, throwing "WebSocket closed without opened.".
+    // Skip only transport.connect() while keeping all client helpers (updateStyle, createHotContext, etc.).
+    app.use('/@vite/client', (req, res, next) => {
+      delete req.headers['accept-encoding'];
+      const chunks: Buffer[] = [];
+      const origWrite = res.write.bind(res);
+      const origEnd = res.end.bind(res);
+
+      res.write = ((chunk: any, encoding?: any, cb?: any) => {
+        if (chunk) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'));
+        }
+        if (typeof encoding === 'function') encoding();
+        else if (typeof cb === 'function') cb();
+        return true;
+      }) as any;
+
+      res.end = ((chunk?: any, encoding?: any, cb?: any) => {
+        if (chunk) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'));
+        }
+        const callback = typeof encoding === 'function' ? encoding : cb;
+        const raw = Buffer.concat(chunks).toString('utf8');
+        if (res.statusCode === 200 && raw.includes('transport.connect(')) {
+          const patched = raw.replace(
+            /transport\.connect\(createHMRHandler\(handleMessage\)\);?/g,
+            '/* HMR disabled: WebSocket skipped */'
+          );
+          res.removeHeader('Content-Length');
+          res.removeHeader('ETag');
+          res.setHeader('Content-Length', Buffer.byteLength(patched, 'utf8'));
+          return callback ? origEnd(patched, 'utf8', callback) : origEnd(patched, 'utf8');
+        }
+        if (chunks.length > 0) {
+          const buf = Buffer.concat(chunks);
+          return callback ? origEnd(buf, callback) : origEnd(buf);
+        }
+        return callback ? origEnd(callback) : origEnd();
+      }) as any;
+
+      void origWrite;
+      next();
+    });
+
     app.use(vite.middlewares);
   }
 

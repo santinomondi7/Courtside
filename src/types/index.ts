@@ -92,6 +92,11 @@ export interface Activity {
 
 export type MeasurementType =
   | 'vertical_jump'
+  | 'vertical_jump_arms'
+  | 'single_leg_jump_left'
+  | 'single_leg_jump_right'
+  | 'approach_jump'
+  | 'broad_jump'
   | 'sprint_5m'
   | 'sprint_10m'
   | 'agility_t_test'
