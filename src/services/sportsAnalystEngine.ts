@@ -26,6 +26,24 @@ export interface SportsAnalystContext {
   goalsEvidenceSummary?: any[];
   recentActivities?: any[];
   measurements?: any[];
+  categorySummary?: {
+    iaccU17Sessions?: number;
+    iaccU21Sessions?: number;
+    gymSessions?: number;
+    homePhysicalSessions?: number;
+    homeIndividualSessions?: number;
+    matchSessions?: number;
+    recoverySessions?: number;
+  };
+  presetRoutines?: Array<{
+    id: string;
+    title: string;
+    category: string;
+    description?: string;
+    targetMinutes?: number;
+    warmupNote?: string;
+    exercises?: Array<{ name: string; sets: string; reps: string; notes?: string }>;
+  }>;
   jumpBreakdown?: {
     cmjLatest?: { result: number; date: string } | null;
     armsLatest?: { result: number; date: string } | null;
@@ -105,6 +123,48 @@ export function generateLocalAnalystReply(
     'aporte',
     'asimetria',
   ]);
+
+  // 0. SESIONES PREDETERMINADAS / FÍSICO EN CASA (SESIÓN A y SESIÓN B)
+  if (
+    includesAny(q, [
+      'fisico en casa',
+      'predeterminad',
+      'sesion a',
+      'sesion b',
+      'sesiones en casa',
+      'rutina en casa',
+      'plan en casa',
+      'rutinas',
+      'plantilla',
+    ])
+  ) {
+    const homeTemplates = (context?.presetRoutines || []).filter((r) => r.category === 'home_physical');
+    const homeLogs = (context?.recentActivities || []).filter((a: any) => a.category === 'home_physical');
+    const cmj = jb?.cmjLatest;
+    const asym = jb?.singleLegAsymmetryPct;
+
+    const sessionList =
+      homeTemplates.length > 0
+        ? homeTemplates
+            .map(
+              (t) =>
+                `• **${t.title}** (~${t.targetMinutes || 75} min): ${t.description || ''} (${t.exercises?.length || 0} ejercicios principales)`
+            )
+            .join('\n')
+        : `• **Sesión A (Bilateral + Arranque + Empuje/Tirón)** y **Sesión B (Unilateral + Cambios de Dirección)** (~75 min cada una con 15 min calentamiento + 60 min bloques + vuelta a la calma).`;
+
+    const reply =
+      `**Análisis de tus Sesiones Predeterminadas de Físico en Casa (${athleteName}):**\n\n` +
+      `${sessionList}\n` +
+      `• **Sesiones registradas en tu historial:** ${context?.categorySummary?.homePhysicalSessions ?? homeLogs.length} sesiones completadas de Físico en Casa.\n\n` +
+      `**¿Qué hace bien este diseño y cómo aprovecharlo?**\n` +
+      `1. **Sesión A (Potencia Bilateral + Arranque):** Combina *Salto al cajón (3x4)*, *Drop jump 25 cm (<0,2s contacto)* y *Pogo jumps* para reactividad (CMJ/Abalakov), más *Búlgaras (4s bajada / subida explosiva)*, *Dominadas*, *Peso muerto a 1 pierna* y *Arranques 4m*.\n` +
+      `2. **Sesión B (Estabilidad Unilateral + Cambios de Dirección):** Ataca directo el despegue a un pie y la prevención de rodilla/tobillo con *Subida al cajón 1 pierna*, *Aterrizaje 1 pierna desde 25 cm*, *Patinadores*, *Pogo 1 pierna*, *Pistol squat a cajón* y *Shuttle / Desaceleraciones*.\n` +
+      `3. **Cruce con tus saltos actuales:** ${cmj ? `Tu último CMJ es **${cmj.result} cm**.` : 'Registrá tu CMJ sin brazos y con brazos para medir transferencia.'} ${asym !== null && asym !== undefined ? `Tu asimetría a 1 pie es **${asym}%** (${asym >= 10 ? 'la Sesión B es clave para bajarla debajo del 10%' : 'equilibrada <10%'}).` : 'Cargá tus saltos a 1 pie (izq/der) para validar el impacto de la Sesión B.'}\n\n` +
+      `**Regla clave de fatiga:** Como la pliometría (Drop Jumps / Cajón) exige sistema nervioso fresco, evitá hacer la Sesión A o B el mismo día que tuviste doble carga o partido pesado con U17/U21, y respetá las pausas de 60–120 s entre series.`;
+
+    return { reply, model: 'courtside-sports-analytics-engine', isLocalFallback: true };
+  }
 
   // 1. SALTO VERTICAL / CMJ / CON BRAZOS (ABALAKOV) / A UN PIE / VOLCAR
   if (

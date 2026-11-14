@@ -21,7 +21,9 @@ import {
   PhysicalMeasurement,
   PersonalGoal,
   UserProfile,
+  RoutineTemplate,
 } from '../../types';
+import { DEFAULT_TEMPLATES } from '../../services/storage';
 import {
   analyzeWeaknessesAndImbalances,
   analyzeWeeklyWorkload,
@@ -36,6 +38,7 @@ interface Props {
   activities: Activity[];
   measurements: PhysicalMeasurement[];
   goals: PersonalGoal[];
+  templates?: RoutineTemplate[];
   onNavigateSection?: (section: any) => void;
 }
 
@@ -55,6 +58,7 @@ export const PerformanceAnalystView: React.FC<Props> = ({
   activities,
   measurements,
   goals,
+  templates,
   onNavigateSection,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -143,10 +147,13 @@ export const PerformanceAnalystView: React.FC<Props> = ({
         };
       });
 
-      const recentActivities = [...activities]
-        .filter((a) => a.status === 'completed' || a.status === 'partial')
+      const completedOrPartial = activities.filter(
+        (a) => a.status === 'completed' || a.status === 'partial'
+      );
+
+      const recentActivities = [...completedOrPartial]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 8)
+        .slice(0, 20)
         .map((a) => ({
           date: a.date,
           category: a.category,
@@ -155,10 +162,49 @@ export const PerformanceAnalystView: React.FC<Props> = ({
           rpe: a.rpe,
           fatigue: a.fatigueLevel,
           sleep: a.sleepHours,
+          homeSessionName: a.homeSessionName,
+          homeGoal: a.homeGoal,
+          homeExercises: a.homeExercises,
+          gymExercises: a.gymExercises,
+          iaccContents: a.iaccContents,
+          iaccWhatWentWell: a.iaccWhatWentWell,
+          iaccNeedsImprovement: a.iaccNeedsImprovement,
+          basketballSkillCategory: a.basketballSkillCategory,
+          basketballDrillName: a.basketballDrillName,
           shootingAttempts: a.basketballAttempts,
           shootingMakes: a.basketballMakes,
+          matchOpponent: a.matchOpponent,
+          matchMinutesPlayed: a.matchMinutesPlayed,
           notes: a.notes,
         }));
+
+      const categorySummary = {
+        iaccU17Sessions: completedOrPartial.filter(
+          (a) => a.category === 'iacc_team' && a.iaccCategoryLevel !== 'U21'
+        ).length,
+        iaccU21Sessions: completedOrPartial.filter(
+          (a) => a.category === 'iacc_team' && a.iaccCategoryLevel === 'U21'
+        ).length,
+        gymSessions: completedOrPartial.filter((a) => a.category === 'institute_gym').length,
+        homePhysicalSessions: completedOrPartial.filter((a) => a.category === 'home_physical').length,
+        homeIndividualSessions: completedOrPartial.filter((a) => a.category === 'home_individual').length,
+        matchSessions: completedOrPartial.filter((a) => a.category === 'match').length,
+        recoverySessions: completedOrPartial.filter((a) => a.category === 'recovery').length,
+      };
+
+      const activeTemplates = templates && templates.length > 0 ? templates : DEFAULT_TEMPLATES;
+      const presetRoutines = activeTemplates.map((t) => ({
+        id: t.id,
+        title: t.title,
+        category: t.category,
+        description: t.description,
+        targetMinutes: t.targetMinutes,
+        warmupNote:
+          t.category === 'home_physical'
+            ? 'Calentamiento (15 min): Movilidad 4 min (tobillo a pared 2x10, 90/90 cadera, world greatest stretch, colgado + retracciones 2x8), Soga 5 min (suave, pierna única 2x20s, 4x20s rápido/10s), Conos 6 min (Skips A 5m x3, pogo hops 2x10, puente glúteo 1 pierna 2x8, laterales con frenada, 2 arranques 70%). Vuelta a la calma: flexor cadera, pigeon/90-90 y gemelos 2x30s/lado, colgado pasivo 2x30s, respiración nasal 2 min.'
+            : undefined,
+        exercises: t.items,
+      }));
 
       const sortedMeas = [...measurements].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -222,6 +268,8 @@ export const PerformanceAnalystView: React.FC<Props> = ({
         activitiesCount: activities.length,
         measurementsCount: measurements.length,
         goalsCount: goals.length,
+        categorySummary,
+        presetRoutines,
         jumpBreakdown,
         shootingSummary,
         weaknesses,
@@ -325,12 +373,12 @@ export const PerformanceAnalystView: React.FC<Props> = ({
   };
 
   const suggestedQuestions = [
+    'Analizá mis sesiones predeterminadas de Físico en Casa (Sesión A y B)',
     '¿Cómo puedo mejorar mi salto vertical y el despegue a un pie?',
     'Analizá mi CMJ vs salto con brazos y saltos a un pie',
     '¿Qué ejercicios me ayudan a mejorar mi primer paso?',
     '¿Cuál es mi principal debilidad según mis registros?',
     '¿Cómo fue mi carga interna y fatiga esta semana?',
-    '¿Qué objetivos tienen respaldo de mediciones reales?',
     '¿Cómo mejorar mi tiro y mi mano izquierda?',
     '¿Qué debería comer y descansar para rendir mejor en U17/U21?',
   ];

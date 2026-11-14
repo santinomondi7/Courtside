@@ -4,7 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,25 +125,56 @@ async function startServer() {
 
     const lastUserMessage = messages[messages.length - 1]?.content || '';
 
-    // Build sports system prompt: open, versatile basketball performance coach & analyst grounded in real records
-    const sportsSystemInstruction = `Sos "Basketball Performance Analyst", el analista de rendimiento deportivo y asesor integral de básquetbol de COURTSIDE para Santino (16 años, jugador formativo de Instituto Atlético Central Córdoba - IACC, categorías U17 y U21).
+    // Preset routine fallback reference if not explicitly included by older clients
+    const defaultPresetRoutinesReference = [
+      {
+        title: 'SESIÓN A: Salto bilateral + arranque + empuje/tirón (Físico en Casa, ~75 min)',
+        blocks:
+          'Calentamiento 15 min (movilidad tobillo/cadera/escapular, soga 5 min, conos 6 min). ' +
+          'Pliometría 18 min: Salto al cajón 3x4 (90s), Drop jump 25cm 3x4 (<0.2s contacto, 2min), Pogo jumps 2x10 (60s). ' +
+          'Fuerza+Core 30 min pares alternados: 1a Sentadilla búlgara 3x6/pierna (4s bajada, subida explosiva, RIR 2) + 1b Dominada explosiva prona 3x4-5; ' +
+          '2a Peso muerto 1 pierna 3x8/pierna (3-1-1) + 2b Flexión con palmada 3x5; ' +
+          '3a Rueda abdominal rodillas 2x6-10 + 3b Dead bug 2x8/lado. ' +
+          'Velocidad 12 min: Arranques lineales 4m 3x5, Sprint 3m+frenada 2 pasos+arranque 3m 3x3, Deslizamientos defensivos 2.5m 3x8s. Vuelta a la calma.',
+      },
+      {
+        title: 'SESIÓN B: Unilateral + cambios de dirección (Físico en Casa, ~75 min)',
+        blocks:
+          'Calentamiento 15 min. ' +
+          'Pliometría 18 min: Subida al cajón a 1 pierna 3x3/pierna (90s), Bajada 25cm y aterrizaje a 1 pierna 2x4/pierna (60s), Saltos laterales patinador 3x5/lado (1m amplitud, 60s), Pogo a 1 pierna 2x8/pierna (60s). ' +
+          'Fuerza+Core 30 min pares alternados: 1a Pistol squat a cajón 3x4/pierna (4s bajada, subida explosiva) + 1b Dominada supina pausa 2s arriba 3x5; ' +
+          '2a Gemelo 1 pierna con cajón 3x10/pierna (3-1-X) + 2b Flexión declinada pies en cajón 3x6-8; ' +
+          '3a Rueda abdominal 2x6-10 + 3b Plancha lateral con elevación de cadera 2x10/lado. ' +
+          'Cambios de dirección 12 min: Shuttle 3 conos 3x4, Salida cruzada desde postura defensiva 3x3/lado, Desaceleración sprint 4m + frenada 2 pasos + salto al aro 3x4. Vuelta a la calma.',
+      },
+    ];
 
-TU PROPÓSITO (MUY IMPORTANTE — NO TE CIERRES):
-- NO te limites a repetir estadísticas ni a responder solo preguntas cerradas sobre sus registros.
-- Respondé de forma AMPLIA, PRÁCTICA, CIENTÍFICA Y ACCIONABLE a CUALQUIER pregunta que te haga Santino: cómo mejorar su salto vertical (CMJ sin brazos, salto con brazos/Abalakov, salto a un pie izquierdo y derecho, salto en carrera), cómo ganar velocidad y primer paso, técnica de tiro, mano izquierda, manejo de balón, defensa, fuerza en gimnasio, recuperación, sueño, alimentación deportiva, manejo de la frustración/enojo o preparación de partidos.
-- Usá sus datos reales del CONTEXTO DEPORTIVO VERIFICADO como punto de partida personalizado para enriquecer tu respuesta (y si faltan datos de algún test como salto a un pie o con brazos, explicá igualmente lo que preguntó y sugerile registrar esa medición para hacer seguimiento).
+    const presetRoutinesForPrompt =
+      Array.isArray(context?.presetRoutines) && context.presetRoutines.length > 0
+        ? context.presetRoutines
+        : defaultPresetRoutinesReference;
+
+    // Build sports system prompt: open, thoughtful, versatile basketball performance coach & analyst grounded in real records
+    const sportsSystemInstruction = `Sos "Basketball Performance Analyst", el analista de rendimiento deportivo y coach integral de básquetbol de COURTSIDE para Santino (16 años, jugador formativo de Instituto Atlético Central Córdoba - IACC, categorías U17 y U21).
+
+TU PROPÓSITO (RAZONÁ EN PROFUNDIDAD Y NO TE CIERRES):
+- Pensá y razoná con criterio técnico, biomecánico y táctico ante CUALQUIER pregunta que te haga Santino: ya sea sobre sus sesiones predeterminadas de Físico en Casa (Sesión A y Sesión B), gimnasio del club, entrenamientos U17/U21, cómo mejorar el salto (CMJ sin brazos, salto con brazos/Abalakov, saltos a un pie izquierdo y derecho, salto en carrera), primer paso, tiro, mano izquierda, defensa, recuperación, sueño, alimentación, mentalidad o cualquier duda deportiva general.
+- MUY IMPORTANTE: Toda la información sobre sus **rutinas predeterminadas** (Sesión A, Sesión B de Físico en Casa con calentamiento, bloques de pliometría/fuerza/core/velocidad/cambios de dirección y Gimnasio IACC) YA ESTÁ abajo en el CONTEXTO DEPORTIVO VERIFICADO. **NUNCA le pidas a Santino que te escriba o pegue sus sesiones predeterminadas ni sus datos ya cargados**: analizalas directamente desde el contexto.
+- Usá sus datos reales (sesiones cargadas, mediciones, metas, debilidades y carga) para personalizar el razonamiento. Si todavía falta alguna medición puntual (ej. salto a un pie o sesiones cargadas), respondé igual su pregunta con análisis completo y sugerí registrar ese dato para darle seguimiento.
 
 REGLAS DE RIGOR Y VERACIDAD:
-1. NUNCA inventes fechas, tests, puntajes, porcentajes o entrenamientos personales que no figuren en el CONTEXTO DEPORTIVO VERIFICADO. Si citás una marca de Santino, que sea exactamente la que figura en el contexto.
-2. NUNCA contradigas ni reemplaces las indicaciones del director técnico o preparador físico de IACC ni des diagnósticos médicos: cuando sugieras ejercicios pliométricos o cargas de gimnasio, recomendá coordinarlo con el PF del club.
-3. Diferenciá claramente: (a) sus datos reales medidos, (b) el conocimiento técnico/biomecánico aplicado (ejercicios, técnica de brazos, trabajo unilateral, descansos) y (c) falta de registros cuando un test aún no fue cargado (no confundas falta de datos con debilidad).
-4. En saltos, diferenciá bien los protocolos: CMJ sin brazos (potencia pura de piernas), Salto con Brazos / Abalakov (coordinación e impulso de brazos, normalmente +10-15% sobre CMJ) y Saltos a Un Pie Izquierdo vs Derecho (despegue en carrera y control de asimetría bilateral <10%).
+1. NUNCA inventes fechas, tests, puntajes, porcentajes o entrenamientos personales realizados que no figuren en el CONTEXTO DEPORTIVO VERIFICADO. Si citás una marca o sesión realizada por Santino, que sea exactamente la que figura en el contexto.
+2. NUNCA contradigas ni reemplaces las indicaciones del director técnico o preparador físico de IACC ni des diagnósticos médicos: cuando sugieras ajustes de carga o pliometría, recomendá coordinarlo con el PF del club.
+3. Diferenciá claramente: (a) sus datos reales medidos y rutinas predeterminadas cargadas en la app, (b) tu análisis/razonamiento técnico-deportivo aplicado y (c) falta de registros cuando un test aún no fue cargado.
+4. En saltos, diferenciá bien los protocolos: CMJ sin brazos (potencia pura de piernas), Salto con Brazos / Abalakov (impulso de brazos, normalmente +10-15% sobre CMJ) y Saltos a Un Pie Izquierdo vs Derecho (despegue en carrera y control de asimetría bilateral <10%).
 5. Mantené un tono cercano, claro, argentino, motivador y albirrojo (identidad de Instituto). Si expresa enojo o frustración, ayudalo a resetear mentalmente recordando que el progreso no es lineal.
 
 CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
 - Atleta: ${context?.profile?.name || 'Santino'} (${context?.profile?.club || 'IACC'}, categoría ${context?.profile?.category || 'U17'})
 - Altura: ${context?.profile?.heightCm || 187} cm | Peso: ${context?.profile?.weightKg || 77} kg | Envergadura: ${context?.profile?.wingspanCm || 191} cm | Mano hábil: ${context?.profile?.dominantHand || 'Derecha'}
 - Totales registrados: ${context?.activitiesCount || 0} actividades, ${context?.measurementsCount || 0} mediciones físicas, ${context?.goalsCount || 0} objetivos
+- Resumen por Categoría: ${JSON.stringify(context?.categorySummary || {})}
+- Rutinas y Sesiones Predeterminadas en la App (Físico en Casa Sesión A/B y Gimnasio): ${JSON.stringify(presetRoutinesForPrompt)}
 - Perfil de Saltos (CMJ / Con Brazos / 1 Pie): ${JSON.stringify(context?.jumpBreakdown || {})}
 - Resumen de Tiro en Patio: ${JSON.stringify(context?.shootingSummary || {})}
 - Resumen Carga Semanal Real: ${JSON.stringify(context?.weeklyWorkloadSummary || {})}
@@ -151,7 +182,7 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
 - Estimaciones de Tendencia: ${JSON.stringify(context?.trendEstimations || [])}
 - Comparación de Períodos: ${JSON.stringify(context?.periodComparisonSummary || {})}
 - Objetivos con Evidencia: ${JSON.stringify(context?.goalsEvidenceSummary || [])}
-- Últimas 8 sesiones completadas: ${JSON.stringify(context?.recentActivities || [])}
+- Últimas 20 sesiones completadas (con ejercicios y detalles): ${JSON.stringify(context?.recentActivities || [])}
 - Todas las Mediciones Físicas Reales: ${JSON.stringify(context?.measurements || [])}
 `;
 
@@ -195,28 +226,34 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
           });
         }
 
-        // Candidate models list
-        const candidateModels = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.8-flash'];
+        // Primary model with deep thinking + fast backup model (all valid active models)
+        const candidateConfigs: Array<{ model: string; thinkingLevel: ThinkingLevel }> = [
+          { model: 'gemini-4-hydrogen', thinkingLevel: ThinkingLevel.HIGH },
+          { model: 'gemini-3.1-flash-lite', thinkingLevel: ThinkingLevel.MEDIUM },
+        ];
         let replyText: string | null = null;
         let successfulModel = '';
 
-        for (const modelName of candidateModels) {
+        for (const candidate of candidateConfigs) {
           try {
             const response = await ai.models.generateContent({
-              model: modelName,
+              model: candidate.model,
               contents,
               config: {
                 systemInstruction: sportsSystemInstruction,
+                thinkingConfig: {
+                  thinkingLevel: candidate.thinkingLevel,
+                },
               },
             });
 
             if (response.text) {
               replyText = response.text;
-              successfulModel = modelName;
+              successfulModel = candidate.model;
               break;
             }
           } catch (modelErr: any) {
-            console.warn(`[Analyst API] Model ${modelName} error:`, modelErr?.message || modelErr);
+            console.warn(`[Analyst API] Model ${candidate.model} error:`, modelErr?.message || modelErr);
           }
         }
 
@@ -252,6 +289,24 @@ CONTEXTO DEPORTIVO VERIFICADO DEL ATLETA:
     const athleteName = context?.profile?.name || 'Santino';
 
     if (
+      hasAny([
+        'fisico en casa',
+        'predeterminad',
+        'sesion a',
+        'sesion b',
+        'sesiones en casa',
+        'rutina en casa',
+        'plan en casa',
+      ])
+    ) {
+      const homeCount = context?.categorySummary?.homePhysicalSessions ?? 0;
+      reply =
+        `**Análisis de tus Sesiones Predeterminadas de Físico en Casa (${athleteName}):**\n\n` +
+        `• **Sesión A (Salto bilateral + arranque + empuje/tirón, ~75 min):** Incluye calentamiento (15 min), Pliometría (*Salto al cajón 3x4*, *Drop jump 25 cm 3x4 <0.2s*, *Pogo jumps 2x10*), Fuerza+Core en pares (*Búlgaras 4s bajada / subida explosiva*, *Dominada prona*, *Peso muerto a 1 pierna*, *Flexión con palmada*, *Rueda + Dead bug*) y Velocidad (*Arranques 4m*, *Sprint+frenada*, *Deslizamientos defensivos*).\n` +
+        `• **Sesión B (Unilateral + cambios de dirección, ~75 min):** Pliometría unilateral (*Subida al cajón 1 pierna*, *Aterrizaje 1 pierna desde 25cm*, *Patinadores*, *Pogo 1 pierna*), Fuerza+Core (*Pistol squat a cajón*, *Dominada supina*, *Gemelo 1 pierna*, *Flexión declinada*, *Plancha lateral*) y Cambios de dirección (*Shuttle 3 conos*, *Salida cruzada*, *Desaceleración con salto al aro*).\n` +
+        `• **Registros completados en tu historial:** ${homeCount} sesiones de Físico en Casa.\n\n` +
+        `**Balance técnico:** La combinación de Sesión A (potencia elástica bilateral y salida lineal) + Sesión B (control unilateral y frenado) está muy bien orientada al básquet U17/U21. Asegurate de no hacerlas con las piernas muy cargadas tras doble turno en IACC y coordinar el volumen de saltos con el PF del club.`;
+    } else if (
       hasAny([
         'salto',
         'saltar',

@@ -468,6 +468,7 @@ function CourtsideApp() {
               activities={activities}
               measurements={measurements}
               goals={goals}
+              templates={templates}
               onNavigateSection={handleSelectSection}
             />
           )}
